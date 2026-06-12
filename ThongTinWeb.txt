@@ -1,0 +1,10 @@
+link host frontend web: http://localhost:5173/
+( React/JavaScript )
+link host backend web: http://127.0.0.1:8000
+chay local frontend:
+cd frontend 
+npm run dev
+chay local backend:
+cd backend
+venv\Scripts\activate
+uvicorn main:app --reload

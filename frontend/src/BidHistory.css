@@ -1,0 +1,62 @@
+.bid-history-container {
+    padding: 20px;
+    background: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    height: 400px;
+    overflow-y: auto;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.bid-history-container h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: #333;
+    font-size: 18px;
+    border-bottom: 2px solid #f0f0f0;
+    padding-bottom: 10px;
+}
+
+.timeline {
+    border-left: 2px solid #e0e0e0;
+    margin-left: 6px;
+    padding-left: 20px;
+}
+
+.bid-item {
+    position: relative;
+    margin-bottom: 25px;
+    display: flex;
+    flex-direction: column;
+}
+
+.dot {
+    position: absolute;
+    left: -27px;
+    top: 0px;
+    width: 10px;
+    height: 10px;
+    background: #ccc;
+    border-radius: 50%;
+    border: 2px solid #fff;
+}
+
+.latest .dot {
+    background: #28a745;
+    box-shadow: 0 0 0 4px rgba(40, 167, 69, 0.12);
+}
+
+.content {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.time { font-size: 11px; color: #999; }
+.user { font-size: 14px; color: #333; }
+.amount { font-size: 15px; color: #555; }
+
+.latest .amount {
+    color: #28a745;
+    font-weight: 700;
+}
