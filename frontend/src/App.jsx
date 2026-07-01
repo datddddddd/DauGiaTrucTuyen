@@ -5,11 +5,11 @@ import AdminPanel from './components/AdminPanel';
 import { useWinDialog } from './hooks/useWinDialog';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import UserDashboardPage from './pages/UserDashboardPage';
+import SellerPage from './pages/SellerPage';
 
 // --- CẤU HÌNH ĐƯỜNG DẪN TẬP TRUNG ---
 const API_BASE_URL = "http://127.0.0.1:8000/api";
 const WS_BASE_URL = "ws://127.0.0.1:8000";
-
 function App() {
     const [products, setProducts] = useState([]);
     const [selectedProduct, setSelectedProduct] = useState(null);
@@ -18,18 +18,14 @@ function App() {
     const [historyBids, setHistoryBids] = useState([]);
     const [timeLeft, setTimeLeft] = useState(0);
     const [isSubmitting, setIsSubmitting] = useState(false);
-
+    const [currentView, setCurrentView] = useState("home");
     // --- 1. CÁC STATE QUẢN LÝ ĐĂNG NHẬP / ĐĂNG KÝ THỰC TẾ ---
     const [token, setToken] = useState(localStorage.getItem("token") || "");
     const [username, setUsername] = useState(localStorage.getItem("username") || "");
     const [userRole, setUserRole] = useState(localStorage.getItem("role") || "");
     const [isRegisterMode, setIsRegisterMode] = useState(false);
     const [isAdminView, setIsAdminView] = useState(false);
-    const isAdmin = userRole === "admin" || username === "admin";
-
-    // View state for routing
-    const [currentView, setCurrentView] = useState("home"); // home, dashboard, admin, profile, wallet, watchlist
-
+    const isAdmin = userRole === "admin";
     const [inputUsername, setInputUsername] = useState("");
     const [inputEmail, setInputEmail] = useState("");
     const [inputPassword, setInputPassword] = useState("");
@@ -470,11 +466,37 @@ function App() {
                 <div className="md:col-span-2 border border-brand-border rounded-2xl p-6 bg-brand-bg shadow-sm flex flex-col justify-between">
                     <div>
                         <div className="mb-4">
-                            <span className="bg-accent-bg text-accent border border-accent-border text-xs font-bold px-3 py-1 rounded-full">
-                                ⚡ HỆ THỐNG ĐÃ XÁC THỰC (JWT)
-                            </span>
-                        </div>
+    <span className="bg-accent-bg text-accent border border-accent-border text-xs font-bold px-3 py-1 rounded-full">
+        ⚡ HỆ THỐNG ĐÃ XÁC THỰC (JWT)
+    </span>
+</div>
 
+{selectedProduct.images ? (
+    <div className="w-full max-w-md my-4 rounded-2xl overflow-hidden border border-brand-border bg-gray-950 flex justify-center items-center p-2">
+        <img 
+            src={
+                selectedProduct.images.includes("http")
+                    ? selectedProduct.images.replace(/[\[\]'"\s]/g, "") // Lọc ký tự rác
+                    : `http://127.0.0.1:8000/${selectedProduct.images.replace(/[\[\]'"\s]/g, "")}` // Nối link server
+            } 
+            alt={selectedProduct.title} 
+            className="w-full h-64 object-contain rounded-xl"
+            onError={(e) => {
+                // Ảnh dự phòng nếu link lỗi
+                e.target.src = "https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=500&auto=format&fit=crop&q=60";
+            }}
+        />
+    </div>
+) : (
+    // Nếu sản phẩm chưa có ảnh, hiện ảnh mặc định
+    <div className="w-full max-w-md my-4 rounded-2xl overflow-hidden border border-brand-border bg-gray-950 flex justify-center items-center p-2">
+        <img 
+            src="https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=500&auto=format&fit=crop&q=60" 
+            alt="Default" 
+            className="w-full h-64 object-cover rounded-xl"
+        />
+    </div>
+)}
                         <h2 className="text-2xl font-semibold text-brand-h mb-2">{selectedProduct.title}</h2>
                         <p className="text-brand-text text-sm mb-6 leading-relaxed">{selectedProduct.description}</p>
                         
@@ -536,27 +558,9 @@ function App() {
         );
     }
 
-    // --- GIAO DIỆN ADMIN PANEL ---
-    if (token && isAdmin && isAdminView) {
-        return (
-            <>
-            <AdminPanel
-                token={token}
-                username={username}
-                onBack={() => setIsAdminView(false)}
-                onProductsChanged={fetchProducts}
-                showAlert={showAlert}
-                showConfirm={showConfirm}
-            />
-            {renderDialog()}
-            </>
-        );
-    }
-
-    // --- DIỆN MẠO 3: TRANG CHỦ DANH SÁCH SẢN PHẨM ---
-    return (
-        <>
-        {/* Dashboard Views */}
+// --- DIỆN MẠO 3: HOME / DASHBOARD / SELLER / ADMIN ---
+return (
+    <>
         {currentView === "dashboard" && (
             <UserDashboardPage />
         )}
@@ -565,97 +569,94 @@ function App() {
             <AdminDashboardPage />
         )}
 
-        {/* Home/Product View */}
-        {currentView === "home" && (
+        {currentView === "seller" && (
             <div className="min-h-screen bg-page-bg">
-            <div className="w-full max-w-5xl mx-auto p-6 text-left">
-            {/* Header Sàn */}
-            <div className="flex justify-between items-center mb-8 border-b border-brand-border pb-5">
-                <h1 className="text-3xl font-medium tracking-tight text-brand-h m-0">
-                    BID<span className="text-accent font-bold">PRO</span>
-                </h1>
-                <div className="flex items-center gap-3 text-sm text-brand-text">
-                    <span>Xin chào, <strong className="text-accent">{username}</strong>!</span>
-
-                    {/* User Dashboard Button */}
-                    {token && (
-                        <button
-                            onClick={() => setCurrentView("dashboard")}
-                            className={`px-3 py-1.5 text-xs font-bold rounded-xl transition shadow-sm ${
-                                currentView === "dashboard"
-                                    ? "bg-blue-500 text-white"
-                                    : "bg-brand-bg text-brand-h border border-brand-border hover:bg-code-bg"
-                            }`}
-                        >
-                            Dashboard 📊
-                        </button>
-                    )}
-
-                    {isAdmin && (
-                        <button
-                            onClick={() => setCurrentView("admin")}
-                            className={`px-3 py-1.5 text-xs font-bold rounded-xl transition shadow-sm ${
-                                currentView === "admin" || isAdminView
-                                    ? "bg-amber-500 text-white"
-                                    : "bg-amber-500 text-white hover:bg-amber-600"
-                            }`}
-                        >
-                            Admin 🛠️
-                        </button>
-                    )}
-
-                    <button onClick={toggleDarkMode} className="p-1.5 rounded-full hover:bg-code-bg transition text-base">
-                        {darkMode ? "☀️" : "🌙"}
-                    </button>
+                <div className="w-full max-w-5xl mx-auto p-6 pb-0 text-left">
                     <button
-                        onClick={handleLogout}
-                        className="px-3 py-1.5 text-xs border border-brand-border rounded-xl bg-brand-bg text-brand-h hover:bg-code-bg transition shadow-sm font-medium"
+                        onClick={() => setCurrentView("home")}
+                        className="px-4 py-2 border border-brand-border bg-brand-bg text-brand-h rounded-xl text-sm font-medium hover:bg-code-bg transition"
                     >
-                        Đăng xuất
+                        ⬅️ Trở về Trang chủ
                     </button>
                 </div>
-            </div>
 
-            {/* Grid danh sách sản phẩm - Đã bọc kiểm tra mảng an toàn tránh sập giao diện */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {Array.isArray(products) && products.filter(p => p.status === "active").length > 0 ? (
-                    products.filter(p => p.status === "active").map((item) => (
-                        <div
-                            key={item.id}
-                            className="group border border-brand-border rounded-2xl p-5 bg-brand-bg shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
-                        >
-                            <div>
-                                <h3 className="text-lg font-semibold text-brand-h group-hover:text-accent transition-colors line-clamp-1 mb-2">
-                                    {item.title}
-                                </h3>
-                                <p className="text-brand-text text-xs leading-relaxed line-clamp-2 h-8 mb-4">
-                                    {item.description}
-                                </p>
-                                <span className="text-[11px] uppercase tracking-wider text-brand-text font-medium block">Giá hiện tại</span>
-                                <p className="text-xl font-black text-red-500 mt-0.5 mb-4">
-                                    {item.current_price?.toLocaleString()} <span className="text-sm font-normal">đ</span>
-                                </p>
-                            </div>
-                            <button
-                                onClick={() => setSelectedProduct(item)}
-                                className="w-full py-2.5 bg-accent text-white rounded-xl text-sm font-bold shadow-sm transition-transform active:scale-95"
-                            >
-                                Vào phòng đấu giá 🔨
-                            </button>
-                        </div>
-                    ))
-                ) : (
-                    <p className="col-span-full text-center text-brand-text text-sm py-10">
-                        📭 Hiện tại chưa có sản phẩm nào đang đấu giá.
-                    </p>
-                )}
-            </div>
-            </div>
+                <SellerPage
+                    setSelectedProduct={setSelectedProduct}
+                    setCurrentView={setCurrentView}
+                />
             </div>
         )}
+
+        {currentView === "home" && (
+            <div className="min-h-screen bg-page-bg">
+                <div className="w-full max-w-5xl mx-auto p-6 text-left">
+
+                    {/* HEADER */}
+                    <div className="flex justify-between items-center mb-8 border-b border-brand-border pb-5">
+                        <h1 className="text-3xl font-medium text-brand-h">
+                            BID<span className="text-accent font-bold">PRO</span>
+                        </h1>
+
+                        <div className="flex items-center gap-3 text-sm">
+                            <span>Xin chào, <b>{username}</b></span>
+
+                            <button onClick={() => setCurrentView("dashboard")}>
+                                Dashboard
+                            </button>
+
+                            {(userRole === "seller" || userRole === "admin") && (
+                                <button onClick={() => setCurrentView("seller")}>
+                                    Kênh Người Bán
+                                </button>
+                            )}
+
+                            {isAdmin && (
+                                <button onClick={() => {
+                                    setIsAdminView(true);
+                                    setCurrentView("admin");
+                                }}>
+                                    Admin
+                                </button>
+                            )}
+
+                            <button onClick={toggleDarkMode}>
+                                {darkMode ? "☀️" : "🌙"}
+                            </button>
+
+                            <button onClick={handleLogout}>
+                                Logout
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* PRODUCT GRID */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {Array.isArray(products) &&
+                            products
+                                .filter(p => p.status === "active")
+                                .map(item => (
+                                    <div key={item.id}>
+                                        <h3>{item.title}</h3>
+                                        <p>{item.description}</p>
+                                        <p>{item.current_price}</p>
+
+                                        <button
+                                            onClick={() => setSelectedProduct(item)}
+                                        >
+                                            Vào đấu giá
+                                        </button>
+                                    </div>
+                                ))}
+                    </div>
+
+                </div>
+            </div>
+        )}
+
         {renderDialog()}
-        </>
-    );
+    </>
+);
+    
 }
 
 export default App;

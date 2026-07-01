@@ -1,118 +1,109 @@
-from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, File, UploadFile, Form
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_
-from typing import Dict, List, Optional
+from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime, timedelta
+from typing import Dict, Set
 import threading
-
 import database, models
-from schemas.product import ProductCreate, ProductUpdate, ProductResponse, BidCreate, BidResponse
-from routers.auth import get_current_user, get_current_admin
+from schemas.product import ProductUpdate, BidCreate
+from routers.auth import get_current_user
+import shutil, os
 
 router = APIRouter(prefix="/api/products", tags=["Products"])
 
+# =========================
+# LOCK (SAFE FOR SQLITE / SMALL MYSQL)
+# =========================
 db_lock = threading.Lock()
 
+
+# =========================
+# WEBSOCKET MANAGER
+# =========================
 class AuctionManager:
     def __init__(self):
-        self.active_connections: Dict[str, List[WebSocket]] = {}
+        self.active_connections: Dict[str, Set[WebSocket]] = {}
 
     async def connect(self, product_id: str, websocket: WebSocket):
         await websocket.accept()
-        if product_id not in self.active_connections:
-            self.active_connections[product_id] = []
-        self.active_connections[product_id].append(websocket)
+        self.active_connections.setdefault(product_id, set()).add(websocket)
 
     def disconnect(self, product_id: str, websocket: WebSocket):
         if product_id in self.active_connections:
-            self.active_connections[product_id].remove(websocket)
+            self.active_connections[product_id].discard(websocket)
             if not self.active_connections[product_id]:
                 del self.active_connections[product_id]
 
     async def broadcast(self, product_id: str, data: dict):
-        if product_id in self.active_connections:
-            for connection in self.active_connections[product_id]:
-                try:
-                    await connection.send_json(data)
-                except:
-                    pass
+        if product_id not in self.active_connections:
+            return
+
+        dead = []
+
+        for ws in self.active_connections[product_id]:
+            try:
+                await ws.send_json(data)
+            except:
+                dead.append(ws)
+
+        for ws in dead:
+            try:
+                await ws.close()
+            except:
+                pass
+            self.disconnect(product_id, ws)
+
 
 auction_manager = AuctionManager()
 
-@router.get("", response_model=List[ProductResponse])
-def get_products(
-    db: Session = Depends(database.get_db),
-    category_id: Optional[int] = None,
-    min_price: Optional[int] = None,
-    max_price: Optional[int] = None,
-    status: Optional[str] = "active",
-    sort_by: Optional[str] = "newest",
-    search: Optional[str] = None
-):
-    query = db.query(models.Product)
-    
-    # Filters
-    if category_id:
-        query = query.filter(models.Product.category_id == category_id)
-    if min_price:
-        query = query.filter(models.Product.current_price >= min_price)
-    if max_price:
-        query = query.filter(models.Product.current_price <= max_price)
-    if status:
-        query = query.filter(models.Product.status == status)
-    if search:
-        query = query.filter(
-            or_(
-                models.Product.title.ilike(f"%{search}%"),
-                models.Product.description.ilike(f"%{search}%")
-            )
-        )
-    
-    # Sorting
-    if sort_by == "newest":
-        query = query.order_by(models.Product.created_at.desc() if hasattr(models.Product, 'created_at') else models.Product.id.desc())
-    elif sort_by == "oldest":
-        query = query.order_by(models.Product.created_at.asc() if hasattr(models.Product, 'created_at') else models.Product.id.asc())
-    elif sort_by == "highest_price":
-        query = query.order_by(models.Product.current_price.desc())
-    elif sort_by == "lowest_price":
-        query = query.order_by(models.Product.current_price.asc())
-    elif sort_by == "ending_soon":
-        query = query.order_by(models.Product.end_time.asc())
-    
-    products = query.all()
-    
-    # Add bid count
+
+# =========================
+# GET ALL PRODUCTS
+# =========================
+@router.get("")
+def get_products(db: Session = Depends(database.get_db)):
+    products = db.query(models.Product).all()
+
     result = []
+
     for p in products:
-        bid_count = db.query(models.Bid).filter(models.Bid.product_id == p.id).count()
-        product_dict = {
+        bid_count = db.query(models.Bid).filter(
+            models.Bid.product_id == p.id
+        ).count()
+
+        result.append({
             "id": p.id,
-            "title": p.title,
-            "description": p.description,
+            "title": p.title or "",
+            "description": p.description or "",
             "category_id": p.category_id,
-            "start_price": p.start_price,
-            "step_price": p.step_price,
-            "current_price": p.current_price,
-            "end_time": p.end_time,
-            "status": p.status,
-            "images": p.images,
-            "condition": p.condition,
+            "start_price": p.start_price or 0,
+            "step_price": p.step_price or 0,
+            "current_price": p.current_price or 0,
+            "status": p.status or "active",
+            "images": p.images or "",
             "seller_id": p.seller_id,
             "bid_count": bid_count
-        }
-        result.append(product_dict)
-    
+        })
+
     return result
 
-@router.get("/{product_id}", response_model=ProductResponse)
+
+# =========================
+# GET DETAIL PRODUCT
+# =========================
+@router.get("/{product_id}")
 def get_product_detail(product_id: int, db: Session = Depends(database.get_db)):
-    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    product = db.query(models.Product).filter(
+        models.Product.id == product_id
+    ).first()
+
     if not product:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy sản phẩm")
-    
-    bid_count = db.query(models.Bid).filter(models.Bid.product_id == product_id).count()
-    
+        raise HTTPException(404, "Product not found")
+
+    bid_count = db.query(models.Bid).filter(
+        models.Bid.product_id == product_id
+    ).count()
+
     return {
         "id": product.id,
         "title": product.title,
@@ -129,174 +120,173 @@ def get_product_detail(product_id: int, db: Session = Depends(database.get_db)):
         "bid_count": bid_count
     }
 
-@router.get("/{product_id}/bids", response_model=List[BidResponse])
-def get_product_bids(product_id: int, db: Session = Depends(database.get_db)):
-    bids = db.query(models.Bid).filter(models.Bid.product_id == product_id)\
-             .order_by(models.Bid.created_at.desc()).all()
-    
-    return [
-        {
-            "id": bid.id,
-            "product_id": bid.product_id,
-            "user_id": bid.user_id,
-            "username": bid.user.username,
-            "bid_amount": bid.bid_amount,
-            "created_at": bid.created_at
-        }
-        for bid in bids
-    ]
 
+# =========================
+# PLACE BID (FIXED + SAFE)
+# =========================
 @router.post("/{product_id}/bid")
 async def place_bid(
     product_id: int,
-    bid_data: BidCreate, 
-    db: Session = Depends(database.get_db), 
-    current_user: models.User = Depends(get_current_user)
+    bid_data: BidCreate,
+    db: Session = Depends(database.get_db),
+    current_user=Depends(get_current_user)
 ):
-    with db_lock:
-        product = db.query(models.Product).filter(models.Product.id == product_id).first()
-        if not product:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sản phẩm không tồn tại")
-        
-        now = datetime.utcnow()
-        if now > product.end_time or product.status == "ended":
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Phiên đấu giá này đã kết thúc!")
-        
-        min_required_bid = product.current_price + product.step_price
-        if bid_data.bid_amount < min_required_bid:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
-                detail=f"Giá đặt tối thiểu tiếp theo phải là {min_required_bid:,} VNĐ"
+    try:
+        with db_lock:
+
+            product = db.query(models.Product).filter(
+                models.Product.id == product_id
+            ).with_for_update().first()
+
+            if not product:
+                raise HTTPException(404, "Product not found")
+
+            now = datetime.utcnow()
+
+            # auction ended
+            if not product.end_time or now > product.end_time or product.status == "ended":
+                product.status = "ended"
+                db.commit()
+                raise HTTPException(400, "Auction ended")
+
+            # min bid check
+            min_bid = product.current_price + product.step_price
+            if bid_data.bid_amount < min_bid:
+                raise HTTPException(400, f"Min bid is {min_bid}")
+
+            # wallet
+            wallet = db.query(models.Wallet).filter(
+                models.Wallet.user_id == current_user.id
+            ).first()
+
+            if not wallet:
+                wallet = models.Wallet(user_id=current_user.id, balance=0)
+                db.add(wallet)
+                db.commit()
+                db.refresh(wallet)
+
+            if wallet.balance < bid_data.bid_amount:
+                raise HTTPException(400, "Not enough balance")
+
+            # trừ tiền
+            wallet.balance -= bid_data.bid_amount
+
+            # anti-snipe
+            remaining = (product.end_time - now).total_seconds()
+            sniped = False
+
+            if remaining < 30:
+                product.end_time += timedelta(minutes=1)
+                sniped = True
+
+            # update price
+            product.current_price = bid_data.bid_amount
+
+            # create bid
+            bid = models.Bid(
+                product_id=product_id,
+                user_id=current_user.id,
+                bid_amount=bid_data.bid_amount
             )
 
-        # Anti-snipe mechanism
-        time_remaining = (product.end_time - now).total_seconds()
-        sniped = False
-        if 0 < time_remaining < 30:
-            product.end_time = product.end_time + timedelta(minutes=1)
-            sniped = True
-
-        product.current_price = bid_data.bid_amount
-        
-        new_bid = models.Bid(
-            product_id=product.id,
-            user_id=current_user.id,
-            bid_amount=bid_data.bid_amount
-        )
-        db.add(new_bid)
-        
-        try:
-            db.commit()
-        except Exception as e:
-            db.rollback()
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Giao dịch thất bại!")
-
-        # Notify previous bidder (outbid notification)
-        previous_bids = db.query(models.Bid).filter(
-            models.Bid.product_id == product_id,
-            models.Bid.user_id != current_user.id
-        ).order_by(models.Bid.bid_amount.desc()).first()
-        
-        if previous_bids:
-            notification = models.Notification(
-                user_id=previous_bids.user_id,
-                title="Bạn đã bị vượt giá!",
-                message=f"Ai đó vừa đặt giá cao hơn bạn cho sản phẩm '{product.title}'",
-                notification_type="bid_outbid",
-                product_id=product_id
-            )
-            db.add(notification)
+            db.add(bid)
             db.commit()
 
-        # Broadcast real-time update
+        # broadcast realtime
         await auction_manager.broadcast(str(product_id), {
             "event": "new_bid_delta",
+            "product_id": product_id,
             "current_price": product.current_price,
             "latest_bidder": current_user.username,
-            "end_time": product.end_time.isoformat(),
             "new_bid_history": {
-                "username": current_user.username,
+                "user": current_user.username,
                 "amount": bid_data.bid_amount,
-                "time": datetime.now().strftime("%H:%M:%S")
-            }
+                "time": now.isoformat()
+            },
+            "end_time": product.end_time.isoformat()
         })
-        
-        return {"status": "success", "sniped": sniped}
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+        return {"success": True, "sniped": sniped}
+
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(500, "Database error")
+
+
+# =========================
+# CREATE PRODUCT
+# =========================
+@router.post("")
 def create_product(
-    product_data: ProductCreate,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(database.get_db)
+    title: str = Form(...),
+    description: str = Form(...),
+    category_id: int = Form(...),
+    start_price: int = Form(...),
+    step_price: int = Form(...),
+    duration_hours: int = Form(...),
+    condition: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(database.get_db),
+    current_user=Depends(get_current_user)
 ):
-    # Check if user can create products (admin or seller)
-    if current_user.role not in ["admin", "seller"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Bạn không có quyền đăng sản phẩm đấu giá!"
-        )
-    
-    end_time_calc = datetime.now() + timedelta(hours=product_data.duration_hours)
-    
-    # Convert images list to JSON string
-    images_json = str(product_data.images) if product_data.images else None
-    
-    new_product = models.Product(
-        title=product_data.title,
-        description=product_data.description,
-        category_id=product_data.category_id,
-        start_price=product_data.start_price,
-        step_price=product_data.step_price,
-        current_price=product_data.start_price,
-        end_time=end_time_calc,
+    upload_dir = "static/uploads"
+    os.makedirs(upload_dir, exist_ok=True)
+
+    filename = file.filename.replace(" ", "_")
+    path = os.path.join(upload_dir, filename)
+
+    with open(path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    image_url = f"/static/uploads/{filename}"
+
+    product = models.Product(
+        title=title,
+        description=description,
+        category_id=category_id,
+        start_price=start_price,
+        step_price=step_price,
+        current_price=start_price,
+        end_time=datetime.utcnow() + timedelta(hours=duration_hours),
         status="active",
-        images=images_json,
-        condition=product_data.condition,
+        images=image_url,
+        condition=condition,
         seller_id=current_user.id
     )
-    db.add(new_product)
-    db.commit()
-    db.refresh(new_product)
-    
-    return {
-        "status": "success", 
-        "message": "Đăng sản phẩm đấu giá thành công!", 
-        "product_id": new_product.id
-    }
 
+    db.add(product)
+    db.commit()
+
+    return {"message": "Created successfully"}
+
+
+# =========================
+# UPDATE PRODUCT
+# =========================
 @router.put("/{product_id}")
 async def update_product(
     product_id: int,
     product_data: ProductUpdate,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(database.get_db)
+    db: Session = Depends(database.get_db),
+    current_user=Depends(get_current_user)
 ):
-    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    product = db.query(models.Product).filter(
+        models.Product.id == product_id
+    ).first()
+
     if not product:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy sản phẩm")
-    
-    # Check permissions: admin can edit any, seller can only edit their own
-    if current_user.role == "admin" or (current_user.role == "seller" and product.seller_id == current_user.id):
-        pass
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Bạn không có quyền chỉnh sửa sản phẩm này!"
-        )
+        raise HTTPException(404, "Not found")
 
-    updates = product_data.model_dump(exclude_unset=True)
-    if not updates:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Không có dữ liệu để cập nhật")
+    if current_user.role == "seller" and product.seller_id != current_user.id:
+        raise HTTPException(403, "Not owner")
 
-    for field, value in updates.items():
-        if hasattr(product, field):
-            if field == "images" and value:
-                setattr(product, field, str(value))
-            else:
-                setattr(product, field, value)
+    if current_user.role not in ["admin", "seller"]:
+        raise HTTPException(403, "No permission")
+
+    for k, v in product_data.model_dump(exclude_unset=True).items():
+        setattr(product, k, v)
 
     db.commit()
-    db.refresh(product)
 
     await auction_manager.broadcast(str(product_id), {
         "event": "product_updated",
@@ -304,7 +294,7 @@ async def update_product(
         "title": product.title,
         "current_price": product.current_price,
         "end_time": product.end_time.isoformat(),
-        "status": product.status,
+        "status": product.status
     })
 
-    return {"status": "success", "message": f"Đã cập nhật sản phẩm #{product_id} thành công."}
+    return {"success": True}

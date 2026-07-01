@@ -1,16 +1,6 @@
-@import "tailwindcss";
-
-@theme inline {
-  --color-brand-bg: var(--surface-bg);
-  --color-brand-h: var(--text-h);
-  --color-brand-text: var(--text);
-  --color-brand-border: var(--border);
-  --color-code-bg: var(--code-bg);
-  --color-accent: var(--accent);
-  --color-accent-bg: var(--accent-bg);
-  --color-accent-border: var(--accent-border);
-  --color-page-bg: var(--page-bg);
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
   --page-bg: #e9eef5;
@@ -76,4 +66,110 @@ body {
 #root {
   display: flow-root;
   min-height: 100vh;
+}
+
+/* ==================== HIỆU ỨNG & GIAO DIỆN NÂNG CẤP ==================== */
+
+/* Animation Keyframes */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(124, 58, 237, 0.2); }
+  50% { box-shadow: 0 0 20px rgba(124, 58, 237, 0.55); }
+}
+
+@keyframes livePulse {
+  0%, 100% { transform: scale(0.9); opacity: 0.6; }
+  50% { transform: scale(1.25); opacity: 1; }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(25px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes floatElement {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes shimerGlow {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* CSS Classes Utility */
+.animate-fade-in {
+  animation: fadeIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-float {
+  animation: floatElement 4s ease-in-out infinite;
+}
+
+.live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background-color: #ef4444;
+  border-radius: 50%;
+  animation: livePulse 1.6s infinite ease-in-out;
+}
+
+/* Glassmorphism */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+.dark .glass-panel {
+  background: rgba(21, 27, 36, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Glow on input fields when focused */
+.input-glow {
+  transition: all 0.3s ease;
+}
+.input-glow:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 14px var(--accent-border);
+}
+
+/* Card interactions */
+.hover-card-trigger {
+  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.hover-card-trigger:hover {
+  transform: translateY(-6px) scale(1.015);
+  box-shadow: 
+    0 20px 25px -5px rgba(124, 58, 237, 0.06), 
+    0 10px 10px -5px rgba(124, 58, 237, 0.04),
+    0 0 0 1px var(--accent-border);
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
 }

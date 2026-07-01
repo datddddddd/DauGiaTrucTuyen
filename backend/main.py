@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -8,6 +8,8 @@ import threading
 
 import bcrypt
 
+import asyncio
+from fastapi.staticfiles import StaticFiles
 
 
 import sys
@@ -33,7 +35,7 @@ app = FastAPI(
 
 )
 
-
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # =====================================================================
 
@@ -53,7 +55,7 @@ app.add_middleware(
 
     CORSMiddleware,
 
-    allow_origins=origins,
+    allow_origins=["http://localhost:5173"],
 
     allow_credentials=True,
 
@@ -88,6 +90,148 @@ app.include_router(categories.router)
 app.include_router(banners.router)
 
 app.include_router(admin.router)
+
+# =====================================================================
+# LUỒNG WORKER TỰ ĐỘNG QUÉT & ĐÓNG PHIÊN ĐẤU GIÁ KHI HẾT GIỜ (REAL-TIME)
+# =====================================================================
+async def check_expired_auctions_worker():
+    while True:
+        await asyncio.sleep(5)  # Quét mỗi 5 giây
+        db = next(database.get_db())
+        try:
+            now = datetime.utcnow()
+            # Tìm các sản phẩm đang 'active' nhưng đã quá giờ kết thúc
+            expired_products = db.query(models.Product).filter(
+                models.Product.status == "active",
+                models.Product.end_time <= now
+            ).all()
+
+            for product in expired_products:
+                # Đóng trạng thái sản phẩm
+                product.status = "ended"
+                db.commit()
+
+                # Lấy lượt đấu giá cao nhất của sản phẩm
+                highest_bid = db.query(models.Bid).filter(
+                    models.Bid.product_id == product.id
+                ).order_by(models.Bid.bid_amount.desc()).first()
+
+                if highest_bid:
+                    winner = db.query(models.User).filter(models.User.id == highest_bid.user_id).first()
+                    seller = db.query(models.User).filter(models.User.id == product.seller_id).first() if product.seller_id else None
+
+                    # Cập nhật ví tiền người thắng (trừ tiền)
+                    winner_wallet = db.query(models.Wallet).filter(models.Wallet.user_id == winner.id).first()
+                    if not winner_wallet:
+                        winner_wallet = models.Wallet(user_id=winner.id, balance=0)
+                        db.add(winner_wallet)
+                        db.commit()
+                        db.refresh(winner_wallet)
+
+                    winner_wallet.balance -= highest_bid.bid_amount
+                    winner_wallet.updated_at = datetime.utcnow()
+
+                    # Cập nhật ví tiền người bán (cộng tiền)
+                    seller_wallet = None
+                    if seller:
+                        seller_wallet = db.query(models.Wallet).filter(models.Wallet.user_id == seller.id).first()
+                        if not seller_wallet:
+                            seller_wallet = models.Wallet(user_id=seller.id, balance=0)
+                            db.add(seller_wallet)
+                            db.commit()
+                            db.refresh(seller_wallet)
+                        
+                        seller_wallet.balance += highest_bid.bid_amount
+                        seller_wallet.updated_at = datetime.utcnow()
+
+                    # Ghi nhận lịch sử giao dịch (Transaction Logs)
+                    winner_transaction = models.Transaction(
+                        user_id=winner.id,
+                        wallet_id=winner_wallet.id,
+                        amount=-highest_bid.bid_amount,
+                        transaction_type="payment",
+                        description=f"Thanh toán thắng đấu giá sản phẩm: {product.title}",
+                        status="completed"
+                    )
+                    db.add(winner_transaction)
+
+                    if seller and seller_wallet:
+                        seller_transaction = models.Transaction(
+                            user_id=seller.id,
+                            wallet_id=seller_wallet.id,
+                            amount=highest_bid.bid_amount,
+                            transaction_type="payment",
+                            description=f"Nhận tiền bán sản phẩm đấu giá: {product.title}",
+                            status="completed"
+                        )
+                        db.add(seller_transaction)
+
+                    # Gửi thông báo hệ thống (Notifications)
+                    winner_notification = models.Notification(
+                        user_id=winner.id,
+                        title="🎉 Bạn đã thắng một phiên đấu giá!",
+                        message=f"Chúc mừng! Bạn đã thắng sản phẩm '{product.title}' với giá {highest_bid.bid_amount:,} VNĐ. Số dư ví đã tự động được thanh toán.",
+                        notification_type="auction_won",
+                        product_id=product.id,
+                        is_read=False
+                    )
+                    db.add(winner_notification)
+
+                    if seller:
+                        seller_notification = models.Notification(
+                            user_id=seller.id,
+                            title="💰 Sản phẩm của bạn đã bán thành công!",
+                            message=f"Sản phẩm '{product.title}' đã kết thúc đấu giá thành công! Người mua '{winner.username}' đã thanh toán {highest_bid.bid_amount:,} VNĐ.",
+                            notification_type="system",
+                            product_id=product.id,
+                            is_read=False
+                        )
+                        db.add(seller_notification)
+
+                    db.commit()
+
+                    # Gửi tín hiệu WebSocket để cập nhật trực tiếp màn hình người dùng
+                    await auction_manager.broadcast(str(product.id), {
+                        "event": "auction_ended",
+                        "product_id": product.id,
+                        "title": product.title,
+                        "status": "ended",
+                        "winner_username": winner.username,
+                        "final_price": highest_bid.bid_amount
+                    })
+                else:
+                    # Kết thúc nhưng không có ai đặt giá
+                    if product.seller_id:
+                        seller_notification = models.Notification(
+                            user_id=product.seller_id,
+                            title="⏳ Sản phẩm của bạn đã hết hạn đấu giá",
+                            message=f"Phiên đấu giá sản phẩm '{product.title}' đã kết thúc nhưng rất tiếc không có lượt đặt giá nào.",
+                            notification_type="system",
+                            product_id=product.id,
+                            is_read=False
+                        )
+                        db.add(seller_notification)
+                        db.commit()
+
+                    # Gửi tín hiệu kết thúc không người thắng qua WebSocket
+                    await auction_manager.broadcast(str(product.id), {
+                        "event": "auction_ended",
+                        "product_id": product.id,
+                        "title": product.title,
+                        "status": "ended",
+                        "winner_username": None,
+                        "final_price": product.start_price
+                    })
+
+        except Exception as e:
+            print(f"❌ [WORKER ERROR] Lỗi khi đóng đấu giá: {str(e)}")
+            db.rollback()
+        finally:
+            db.close()
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(check_expired_auctions_worker())
 
 # =====================================================================
 # TÍCH HỢP WEBSOCKET ĐẤU GIÁ REAL-TIME TRỰC TIẾP VÀO APP GỐC (BƯỚC 2)
