@@ -45,10 +45,13 @@ class VNPay:
         if not received_hash:
             return False
             
-        # Extract and sort VNPAY parameters
+        # Extract and sort VNPAY parameters, excluding empty or null values
         clean_params = {
             k: v for k, v in params.items()
-            if k.startswith("vnp_") and k not in ["vnp_SecureHash", "vnp_SecureHashType"]
+            if k.startswith("vnp_") 
+            and k not in ["vnp_SecureHash", "vnp_SecureHashType"]
+            and v is not None 
+            and str(v).strip() != ""
         }
         sorted_params = dict(sorted(clean_params.items()))
         

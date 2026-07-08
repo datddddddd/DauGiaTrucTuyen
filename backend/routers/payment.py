@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/payment", tags=["Payment"])
 
 # Load VNPAY settings from environment
 VNP_TMN_CODE = os.getenv("VNP_TMN_CODE", "RWYGRHCA")
-VNP_HASH_SECRET = os.getenv("VNP_HASH_SECRET", "11ZP25T3EE3HWAFYLL7PVEZ3B985CDQF")
+VNP_HASH_SECRET = os.getenv("VNP_HASH_SECRET", "TDLIWAWIGTEDLJAO8DVX7L1ZEU5RMWKE")
 VNP_URL = os.getenv("VNP_URL", "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
