@@ -1,7 +1,35 @@
 import hmac
 import hashlib
 import urllib.parse
+import re
 from datetime import datetime
+
+def clean_unsigned_ascii(text: str) -> str:
+    # Map Vietnamese accents to unsigned ascii
+    accents_map = {
+        'a': 'áàảãạăắằẳẵặâấầẩẫậ',
+        'A': 'ÁÀẢÃẠĂẮẰẲẴẶÂẤẦẨẪẬ',
+        'd': 'đ',
+        'D': 'Đ',
+        'e': 'éèẻẽẹêếềểễệ',
+        'E': 'ÉÈẺẼẸÊẾỀỂỄỆ',
+        'i': 'íìỉĩị',
+        'I': 'ÍÌỈĨỊ',
+        'o': 'óòỏõọôốồổỗộơớờởỡợ',
+        'O': 'ÓÒỎÕỌÔỐỒỔỖỘƠỚỜỞỠỢ',
+        'u': 'úùủũụưứừửữự',
+        'U': 'ÚÙỦŨỤƯỨỪỬỮỰ',
+        'y': 'ýỳỷỹỵ',
+        'Y': 'ÝỲỶỸÝ'
+    }
+    for r, v in accents_map.items():
+        for c in v:
+            text = text.replace(c, r)
+    # Remove any non-alphanumeric character except space
+    text = re.sub(r'[^a-zA-Z0-9 ]', '', text)
+    # Collapse multiple spaces
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
 
 class VNPay:
     def __init__(self, tmn_code: str, hash_secret: str, payment_url: str):
@@ -10,6 +38,9 @@ class VNPay:
         self.payment_url = payment_url.strip().strip('"').strip("'") if payment_url else ""
 
     def get_payment_url(self, return_url: str, txn_ref: str, amount: int, ip_addr: str, order_info: str) -> str:
+        # Clean order_info to strictly follow VNPAY's specification (no accents, no special chars)
+        cleaned_order_info = clean_unsigned_ascii(order_info)
+
         requestData = {
             "vnp_Version": "2.1.0",
             "vnp_Command": "pay",
@@ -17,7 +48,7 @@ class VNPay:
             "vnp_Amount": str(int(amount * 100)),  # VNPAY requires amount * 100 (in cents/VND)
             "vnp_CurrCode": "VND",
             "vnp_TxnRef": str(txn_ref),
-            "vnp_OrderInfo": order_info,
+            "vnp_OrderInfo": cleaned_order_info,
             "vnp_OrderType": "other",
             "vnp_Locale": "vn",
             "vnp_ReturnUrl": return_url,
