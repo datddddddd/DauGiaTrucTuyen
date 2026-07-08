@@ -19,7 +19,7 @@ import {
   Image as ImageIcon
 } from "lucide-react";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
+const API_URL = import.meta.env.VITE_API_URL || "https://dau-gia-api.onrender.com/api";
 
 const SellerProductsPage = () => {
   const navigate = useNavigate();
@@ -359,7 +359,7 @@ const SellerProductsPage = () => {
                         <img
                           src={
                             p.images
-                              ? `http://127.0.0.1:8000${
+                              ? `https://dau-gia-api.onrender.com${
                                   p.images.startsWith("/") ? "" : "/"
                                  }${p.images.replace(/\\/g, "/")}`
                               : "https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=150"
@@ -868,7 +868,7 @@ const SellerProductsPage = () => {
                           return imgUrls.map((img, index) => (
                             <div key={index} className="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-800 bg-slate-950">
                               <img
-                                src={img.includes("http") ? img : `http://127.0.0.1:8000${img.startsWith("/") ? "" : "/"}${img.replace(/\\/g, "/")}`}
+                                src={img.includes("http") ? img : `https://dau-gia-api.onrender.com${img.startsWith("/") ? "" : "/"}${img.replace(/\\/g, "/")}`}
                                 alt="Ảnh hiện tại"
                                 className="w-full h-full object-cover"
                               />

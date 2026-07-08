@@ -284,7 +284,7 @@ const UserDashboardPage = () => {
     e.preventDefault();
     try {
       const token = localStorage.getItem("token");
-      const API_URL = "http://127.0.0.1:8000/api";
+      const API_URL = import.meta.env.VITE_API_URL || "https://dau-gia-api.onrender.com/api";
       const response = await fetch(`${API_URL}/products/${reviewProduct.id}/reviews`, {
         method: "POST",
         headers: {

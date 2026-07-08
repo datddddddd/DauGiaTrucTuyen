@@ -4,7 +4,7 @@ import { bannerService } from "../services";
 const resolveImageUrl = (imgUrl) => {
   if (!imgUrl) return "";
   if (imgUrl.startsWith("http")) return imgUrl;
-  const backendBase = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api").replace("/api", "");
+  const backendBase = (import.meta.env.VITE_API_URL || "https://dau-gia-api.onrender.com/api").replace("/api", "");
   return `${backendBase}${imgUrl}`;
 };
 

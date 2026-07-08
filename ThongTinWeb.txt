@@ -1,6 +1,6 @@
 link host frontend web: http://localhost:5173/
 ( React/JavaScript )
-link host backend web: http://127.0.0.1:8000
+link host backend web: https://dau-gia-api.onrender.com
 chay local frontend:
 cd frontend 
 npm run dev

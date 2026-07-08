@@ -7,8 +7,8 @@ import { productService } from "../services";
 import { ROUTES } from "../constants/routes";
 import { useAuth } from "../contexts";
 
-const WS_BASE_URL = import.meta.env.VITE_WS_URL || "ws://127.0.0.1:8000";
-const API_ORIGIN = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api").replace(
+const WS_BASE_URL = import.meta.env.VITE_WS_URL || "wss://dau-gia-api.onrender.com";
+const API_ORIGIN = (import.meta.env.VITE_API_URL || "https://dau-gia-api.onrender.com/api").replace(
   /\/api\/?$/,
   ""
 );

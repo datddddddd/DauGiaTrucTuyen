@@ -43,7 +43,7 @@ const resolveImageUrl = (images) => {
   const cleaned = images.replace(/[\[\]'"\s]/g, "");
   const first = cleaned.split(",")[0];
   if (first.includes("http")) return first;
-  return `http://127.0.0.1:8000${first.startsWith("/") ? "" : "/"}${first}`;
+  return `https://dau-gia-api.onrender.com${first.startsWith("/") ? "" : "/"}${first}`;
 };
 
 const HomePage = () => {
@@ -108,7 +108,7 @@ const HomePage = () => {
     title: b.title,
     description: "Phiên đấu giá đặc biệt hoặc thông báo quan trọng từ Ban quản trị hệ thống.",
     price: 0,
-    imageUrl: b.image_url.startsWith("http") ? b.image_url : `${(import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api").replace("/api", "")}${b.image_url}`,
+    imageUrl: b.image_url.startsWith("http") ? b.image_url : `${(import.meta.env.VITE_API_URL || "https://dau-gia-api.onrender.com/api").replace("/api", "")}${b.image_url}`,
     tag: "THÔNG BÁO TỪ BAN QUẢN TRỊ",
     actionId: null
   })) : spotlightSlides;

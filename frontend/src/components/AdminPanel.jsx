@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-const API_BASE_URL = "http://127.0.0.1:8000/api";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://dau-gia-api.onrender.com/api";
 
 const TABS = [
   { id: "dashboard", label: "Tổng quan", icon: "📊" },
