@@ -217,5 +217,41 @@ class Report(Base):
     reviewer = relationship("User", foreign_keys=[reviewed_by])
 
 
+# 13. Bảng Payments (Thanh toán VNPAY)
+class Payment(Base):
+    __tablename__ = "payments"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    auction_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    transaction_id = Column(String, unique=True, nullable=True, index=True)
+    amount = Column(Integer, nullable=False)
+    status = Column(String, default="PENDING", index=True)  # PENDING, SUCCESS, FAILED
+    payment_method = Column(String, default="VNPAY")
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    # Mối quan hệ
+    user = relationship("User")
+    product = relationship("Product")
+    vnpay_transaction = relationship("VNPTransaction", uselist=False, back_populates="payment", cascade="all, delete-orphan")
+
+
+# 14. Bảng VNPTransactions (Lưu chi tiết phản hồi từ VNPAY)
+class VNPTransaction(Base):
+    __tablename__ = "vnpay_transactions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    payment_id = Column(Integer, ForeignKey("payments.id"), nullable=False)
+    vnp_transaction_no = Column(String, nullable=True)
+    bank_code = Column(String, nullable=True)
+    card_type = Column(String, nullable=True)
+    response_code = Column(String, nullable=True)
+    transaction_date = Column(String, nullable=True)
+
+    # Mối quan hệ
+    payment = relationship("Payment", back_populates="vnpay_transaction")
+
+
 # Tạo Index vật lý trong database giúp tối ưu câu lệnh lấy lịch sử bid
 Index("idx_bid_product_amount", Bid.product_id, Bid.bid_amount.desc())

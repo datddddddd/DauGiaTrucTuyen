@@ -3,6 +3,7 @@ export const ROUTES = {
     LANDING: "/",
     LOGIN: "/login",
     FORGOT_PASSWORD: "/forgot-password",
+    PAYMENT_RESULT: "/payment-result",
   },
   USER: {
     HOME: "/auctions",

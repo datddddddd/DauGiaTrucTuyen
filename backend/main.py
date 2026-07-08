@@ -14,6 +14,8 @@ from fastapi.staticfiles import StaticFiles
 
 import sys
 import os
+from dotenv import load_dotenv
+load_dotenv()
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import database, models
 
@@ -21,7 +23,7 @@ import database, models
 
 # Import routers
 
-from routers import auth, products, watchlist, notifications, wallet, categories, banners, admin, reports
+from routers import auth, products, watchlist, notifications, wallet, categories, banners, admin, reports, payment
 
 
 
@@ -83,6 +85,7 @@ app.include_router(banners.router)
 
 app.include_router(admin.router)
 app.include_router(reports.router)
+app.include_router(payment.router)
 
 # =====================================================================
 # LUỒNG WORKER TỰ ĐỘNG QUÉT & ĐÓNG PHIÊN ĐẤU GIÁ KHI HẾT GIỜ (REAL-TIME)

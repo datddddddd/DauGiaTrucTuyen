@@ -26,6 +26,7 @@ import SellerProductsPage from "../pages/seller/SellerProductsPage";
 import AdminDashboardPage from "../pages/AdminDashboardPage";
 import AdminBannersPage from "../pages/AdminBannersPage";
 import AdminCategoriesPage from "../pages/AdminCategoriesPage";
+import PaymentResult from "../pages/PaymentResult";
 
 const AppRouter = () => (
   <Routes>
@@ -33,6 +34,7 @@ const AppRouter = () => (
     <Route path={ROUTES.PUBLIC.LANDING} element={<LandingPage />} />
     <Route path={ROUTES.PUBLIC.LOGIN} element={<LoginPage />} />
     <Route path={ROUTES.PUBLIC.FORGOT_PASSWORD} element={<ForgotPasswordPage />} />
+    <Route path={ROUTES.PUBLIC.PAYMENT_RESULT} element={<PaymentResult />} />
 
     {/* Protected User Routes */}
     <Route element={<ProtectedRoute />}>

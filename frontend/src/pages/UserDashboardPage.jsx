@@ -269,6 +269,20 @@ const UserDashboardPage = () => {
     }
   };
 
+  const handlePayVNPAY = async (order) => {
+    try {
+      triggerToast("⏳ Đang kết nối tới VNPAY...", "loading");
+      const response = await walletService.createVNPAYPayment(order.id, user.id, order.price);
+      if (response && response.payment_url) {
+        window.location.href = response.payment_url;
+      } else {
+        triggerToast("Không nhận được URL thanh toán từ hệ thống!", "error");
+      }
+    } catch (error) {
+      triggerToast("Khởi tạo thanh toán VNPAY thất bại: " + (error.response?.data?.detail || error.message), "error");
+    }
+  };
+
   // 2.9 Delivery Confirmation
   const confirmDeliveryReceived = async (orderId) => {
     try {
@@ -678,6 +692,12 @@ const UserDashboardPage = () => {
                               className="px-3.5 py-2 border border-slate-350 dark:border-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-[10px] font-bold text-slate-800 dark:text-white"
                             >
                               Chuyển khoản VietQR
+                            </button>
+                            <button
+                              onClick={() => handlePayVNPAY(o)}
+                              className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-lg text-[10px]"
+                            >
+                              Thanh toán VNPAY
                             </button>
                           </div>
                         )}

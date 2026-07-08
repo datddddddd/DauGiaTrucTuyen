@@ -20,4 +20,8 @@ export const walletService = {
   async payForAuction(productId, paymentMethod = "wallet") {
     return api.post(`/wallet/payment/${productId}?payment_method=${paymentMethod}`);
   },
+
+  async createVNPAYPayment(auctionId, userId, amount) {
+    return api.post("/payment/create", { auction_id: auctionId, user_id: userId, amount });
+  },
 };
