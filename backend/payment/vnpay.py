@@ -26,10 +26,10 @@ class VNPay:
         }
         
         # Sort parameters alphabetically by key
-        sorted_params = dict(sorted(params.items()))
+        sorted_params = sorted(params.items())
         
-        # Build query string (space is encoded as %20 using urllib.parse.quote)
-        query_string = urllib.parse.urlencode(sorted_params, quote_via=urllib.parse.quote)
+        # Build query string using standard urllib.parse.urlencode
+        query_string = urllib.parse.urlencode(sorted_params)
         
         # Generate HMAC-SHA512 checksum
         secure_hash = hmac.new(
@@ -53,10 +53,10 @@ class VNPay:
             and v is not None 
             and str(v).strip() != ""
         }
-        sorted_params = dict(sorted(clean_params.items()))
+        sorted_params = sorted(clean_params.items())
         
-        # Generate query string
-        query_string = urllib.parse.urlencode(sorted_params, quote_via=urllib.parse.quote)
+        # Generate query string using standard urllib.parse.urlencode
+        query_string = urllib.parse.urlencode(sorted_params)
         
         # Generate hash
         calculated_hash = hmac.new(
