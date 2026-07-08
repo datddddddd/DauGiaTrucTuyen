@@ -1,54 +1,25 @@
-import hmac
 import hashlib
+import hmac
 import urllib.parse
-import re
 from datetime import datetime
-
-def clean_unsigned_ascii(text: str) -> str:
-    # Map Vietnamese accents to unsigned ascii
-    accents_map = {
-        'a': 'áàảãạăắằẳẵặâấầẩẫậ',
-        'A': 'ÁÀẢÃẠĂẮẰẲẴẶÂẤẦẨẪẬ',
-        'd': 'đ',
-        'D': 'Đ',
-        'e': 'éèẻẽẹêếềểễệ',
-        'E': 'ÉÈẺẼẸÊẾỀỂỄỆ',
-        'i': 'íìỉĩị',
-        'I': 'ÍÌỈĨỊ',
-        'o': 'óòỏõọôốồổỗộơớờởỡợ',
-        'O': 'ÓÒỎÕỌÔỐỒỔỖỘƠỚỜỞỠỢ',
-        'u': 'úùủũụưứừửữự',
-        'U': 'ÚÙỦŨỤƯỨỪỬỮỰ',
-        'y': 'ýỳỷỹỵ',
-        'Y': 'ÝỲỶỸÝ'
-    }
-    for r, v in accents_map.items():
-        for c in v:
-            text = text.replace(c, r)
-    # Remove any non-alphanumeric character except space
-    text = re.sub(r'[^a-zA-Z0-9 ]', '', text)
-    # Collapse multiple spaces
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
 
 class VNPay:
     def __init__(self, tmn_code: str, hash_secret: str, payment_url: str):
-        self.tmn_code = tmn_code.strip().strip('"').strip("'") if tmn_code else ""
-        self.hash_secret = hash_secret.strip().strip('"').strip("'") if hash_secret else ""
-        self.payment_url = payment_url.strip().strip('"').strip("'") if payment_url else ""
+        self.tmn_code = tmn_code.strip() if tmn_code else ""
+        self.hash_secret = hash_secret.strip() if hash_secret else ""
+        self.payment_url = payment_url.strip() if payment_url else ""
+        self.requestData = {}
+        self.responseData = {}
 
     def get_payment_url(self, return_url: str, txn_ref: str, amount: int, ip_addr: str, order_info: str) -> str:
-        # Clean order_info to strictly follow VNPAY's specification (no accents, no special chars)
-        cleaned_order_info = clean_unsigned_ascii(order_info)
-
-        requestData = {
+        self.requestData = {
             "vnp_Version": "2.1.0",
             "vnp_Command": "pay",
             "vnp_TmnCode": self.tmn_code,
-            "vnp_Amount": str(int(amount * 100)),  # VNPAY requires amount * 100 (in cents/VND)
+            "vnp_Amount": str(int(amount * 100)),
             "vnp_CurrCode": "VND",
             "vnp_TxnRef": str(txn_ref),
-            "vnp_OrderInfo": cleaned_order_info,
+            "vnp_OrderInfo": order_info,
             "vnp_OrderType": "other",
             "vnp_Locale": "vn",
             "vnp_ReturnUrl": return_url,
@@ -56,8 +27,8 @@ class VNPay:
             "vnp_CreateDate": datetime.now().strftime("%Y%m%d%H%M%S"),
         }
         
-        # Sort and build query string exactly like VNPAY official SDK (using quote_plus)
-        inputData = sorted(requestData.items())
+        # --- FROM OFFICIAL SDK (DO NOT MODIFY ALGORITHM) ---
+        inputData = sorted(self.requestData.items())
         queryString = ''
         seq = 0
         for key, val in inputData:
@@ -66,17 +37,14 @@ class VNPay:
             else:
                 seq = 1
                 queryString = key + '=' + urllib.parse.quote_plus(str(val))
-                
-        # Generate HMAC-SHA512 checksum exactly like official SDK
-        byteKey = self.hash_secret.encode('utf-8')
-        byteData = queryString.encode('utf-8')
-        hashValue = hmac.new(byteKey, byteData, hashlib.sha512).hexdigest()
-        
+
+        hashValue = self.__hmacsha512(self.hash_secret, queryString)
         final_url = self.payment_url + "?" + queryString + '&vnp_SecureHash=' + hashValue
+        # --- END OF OFFICIAL SDK CODE ---
         
-        # Print debug logs exactly as requested by the user
-        print(f"[VNPAY DEBUG] --- CREATE PAYMENT URL (OFFICIAL ALGORITHM) ---")
-        print(f"[VNPAY DEBUG] Danh sach params truoc khi hash: {requestData}")
+        # Debug logs exactly as requested
+        print(f"[VNPAY DEBUG] --- CREATE PAYMENT URL ---")
+        print(f"[VNPAY DEBUG] Danh sach params truoc khi hash: {self.requestData}")
         print(f"[VNPAY DEBUG] Chuoi hashData chinh xac: {queryString}")
         print(f"[VNPAY DEBUG] Gia tri vnp_SecureHash tao ra: {hashValue}")
         print(f"[VNPAY DEBUG] URL cuoi cung gui sang VNPAY: {final_url}")
@@ -84,25 +52,18 @@ class VNPay:
         return final_url
 
     def verify_payment(self, params: dict) -> bool:
-        # Clone params to avoid mutating input dictionary
-        responseData = dict(params)
-        received_hash = responseData.get('vnp_SecureHash')
+        self.responseData = dict(params)
         
-        print(f"[VNPAY DEBUG] --- VERIFY IPN/RETURN PAYMENT (OFFICIAL ALGORITHM) ---")
-        print(f"[VNPAY DEBUG] Received Secure Hash: {received_hash}")
-        
-        if not received_hash:
-            print(f"[VNPAY DEBUG] Verification Failed: Missing vnp_SecureHash")
-            return False
-            
-        # Remove hash params exactly like VNPAY official SDK
-        if 'vnp_SecureHash' in responseData.keys():
-            responseData.pop('vnp_SecureHash')
-        if 'vnp_SecureHashType' in responseData.keys():
-            responseData.pop('vnp_SecureHashType')
-            
-        # Build query string exactly like VNPAY official SDK (filtering for vnp_ prefixed keys)
-        inputData = sorted(responseData.items())
+        # --- FROM OFFICIAL SDK (DO NOT MODIFY ALGORITHM) ---
+        vnp_SecureHash = self.responseData['vnp_SecureHash']
+        # Remove hash params
+        if 'vnp_SecureHash' in self.responseData.keys():
+            self.responseData.pop('vnp_SecureHash')
+
+        if 'vnp_SecureHashType' in self.responseData.keys():
+            self.responseData.pop('vnp_SecureHashType')
+
+        inputData = sorted(self.responseData.items())
         hasData = ''
         seq = 0
         for key, val in inputData:
@@ -112,18 +73,22 @@ class VNPay:
                 else:
                     seq = 1
                     hasData = str(key) + '=' + urllib.parse.quote_plus(str(val))
-                    
-        # Generate HMAC-SHA512 checksum exactly like official SDK
-        byteKey = self.hash_secret.encode('utf-8')
-        byteData = hasData.encode('utf-8')
-        calculated_hash = hmac.new(byteKey, byteData, hashlib.sha512).hexdigest()
+        hashValue = self.__hmacsha512(self.hash_secret, hasData)
+        # --- END OF OFFICIAL SDK CODE ---
+
+        is_valid = vnp_SecureHash == hashValue
         
-        is_valid = calculated_hash.lower() == received_hash.lower()
-        
-        # Print debug logs exactly as requested by the user
-        print(f"[VNPAY DEBUG] Danh sach params truoc khi hash: {responseData}")
+        # Debug logs exactly as requested
+        print(f"[VNPAY DEBUG] --- VERIFY IPN/RETURN PAYMENT ---")
+        print(f"[VNPAY DEBUG] Danh sach params truoc khi hash: {self.responseData}")
         print(f"[VNPAY DEBUG] Chuoi hashData chinh xac: {hasData}")
-        print(f"[VNPAY DEBUG] Gia tri vnp_SecureHash tao ra: {calculated_hash}")
+        print(f"[VNPAY DEBUG] Gia tri vnp_SecureHash tao ra: {hashValue}")
         print(f"[VNPAY DEBUG] Ket qua doi soat chu ky: {is_valid}")
-        
+
         return is_valid
+
+    @staticmethod
+    def __hmacsha512(key, data):
+        byteKey = key.encode('utf-8')
+        byteData = data.encode('utf-8')
+        return hmac.new(byteKey, byteData, hashlib.sha512).hexdigest()
