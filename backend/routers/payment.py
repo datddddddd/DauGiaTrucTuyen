@@ -131,6 +131,43 @@ def vnpay_return(request: Request, db: Session = Depends(database.get_db)):
             url=f"{FRONTEND_URL}/payment-result?status=FAILED&message=MissingTransactionReference"
         )
 
+    # Xử lý giao dịch nạp tiền ví (Wallet Deposit)
+    if txn_ref.startswith("DEP_"):
+        try:
+            tx_id = int(txn_ref.split("_")[1])
+        except (ValueError, IndexError):
+            return RedirectResponse(
+                url=f"{FRONTEND_URL}/payment-result?status=FAILED&message=InvalidTransactionReference"
+            )
+            
+        transaction = db.query(models.Transaction).filter(models.Transaction.id == tx_id).first()
+        if not transaction:
+            return RedirectResponse(
+                url=f"{FRONTEND_URL}/payment-result?status=FAILED&message=TransactionNotFound"
+            )
+            
+        if response_code == "00":
+            if transaction.status == "pending":
+                transaction.status = "completed"
+                bank_code = params.get("vnp_BankCode", "N/A")
+                transaction.description = f"Nạp tiền VNPAY thành công (Mã GD VNPAY: {transaction_no}, Bank: {bank_code})"
+                wallet = db.query(models.Wallet).filter(models.Wallet.id == transaction.wallet_id).first()
+                if wallet:
+                    wallet.balance += transaction.amount
+                    wallet.updated_at = datetime.utcnow()
+                db.commit()
+            return RedirectResponse(
+                url=f"{FRONTEND_URL}/payment-result?status=SUCCESS&amount={amount}&txn_ref={txn_ref}&type=deposit"
+            )
+        else:
+            if transaction.status == "pending":
+                transaction.status = "failed"
+                transaction.description = f"Nạp tiền VNPAY thất bại (Mã lỗi VNPAY: {response_code})"
+                db.commit()
+            return RedirectResponse(
+                url=f"{FRONTEND_URL}/payment-result?status=FAILED&response_code={response_code}&txn_ref={txn_ref}&type=deposit"
+            )
+
     payment = db.query(models.Payment).filter(models.Payment.id == int(txn_ref)).first()
     if not payment:
         return RedirectResponse(
@@ -240,6 +277,36 @@ def vnpay_ipn(request: Request, db: Session = Depends(database.get_db)):
 
     if not txn_ref:
         return {"RspCode": "01", "Message": "Order not found"}
+
+    # Xử lý IPN cho nạp tiền ví (Wallet Deposit)
+    if txn_ref.startswith("DEP_"):
+        try:
+            tx_id = int(txn_ref.split("_")[1])
+        except (ValueError, IndexError):
+            return {"RspCode": "01", "Message": "Order not found"}
+            
+        transaction = db.query(models.Transaction).filter(models.Transaction.id == tx_id).first()
+        if not transaction:
+            return {"RspCode": "01", "Message": "Order not found"}
+            
+        if transaction.status != "pending":
+            return {"RspCode": "02", "Message": "Order already confirmed"}
+            
+        if response_code == "00":
+            transaction.status = "completed"
+            bank_code = params.get("vnp_BankCode", "N/A")
+            transaction.description = f"Nạp tiền VNPAY thành công (Mã GD VNPAY: {transaction_no}, Bank: {bank_code})"
+            wallet = db.query(models.Wallet).filter(models.Wallet.id == transaction.wallet_id).first()
+            if wallet:
+                wallet.balance += transaction.amount
+                wallet.updated_at = datetime.utcnow()
+            db.commit()
+            return {"RspCode": "00", "Message": "Confirm Success"}
+        else:
+            transaction.status = "failed"
+            transaction.description = f"Nạp tiền VNPAY thất bại (Mã lỗi VNPAY: {response_code})"
+            db.commit()
+            return {"RspCode": "00", "Message": "Confirm Success"}
 
     payment = db.query(models.Payment).filter(models.Payment.id == int(txn_ref)).first()
     if not payment:

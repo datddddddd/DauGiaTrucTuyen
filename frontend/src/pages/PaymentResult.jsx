@@ -34,6 +34,7 @@ const PaymentResult = () => {
   const isSuccess = paymentInfo.status === "SUCCESS";
   const isFailed = paymentInfo.status === "FAILED";
   const isProcessing = !isSuccess && !isFailed;
+  const isDeposit = searchParams.get("type") === "deposit" || paymentInfo.txnRef.startsWith("DEP_");
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center bg-[#f6f5f0] dark:bg-[#0b0f14] p-4 font-sans transition-colors duration-300">
@@ -58,23 +59,33 @@ const PaymentResult = () => {
           )}
 
           <h2 className="text-xl font-black text-slate-900 dark:text-white mt-4">
-            {isSuccess ? "Thanh toán thành công! 🎉" : isFailed ? "Thanh toán thất bại" : "Đang xử lý giao dịch... ⏳"}
+            {isSuccess 
+              ? (isDeposit ? "Nạp tiền thành công! 🎉" : "Thanh toán thành công! 🎉") 
+              : isFailed 
+              ? (isDeposit ? "Nạp tiền thất bại" : "Thanh toán thất bại") 
+              : (isDeposit ? "Đang xử lý nạp tiền... ⏳" : "Đang xử lý giao dịch... ⏳")}
           </h2>
           <p className="text-xs text-slate-500 max-w-xs">
             {isSuccess
-              ? "Cảm ơn bạn! Đơn hàng của bạn đã được ghi nhận thanh toán thành công qua cổng VNPAY."
+              ? (isDeposit 
+                  ? "Cảm ơn bạn! Số tiền đã được nạp thành công vào tài khoản ví ký quỹ của bạn qua cổng VNPAY." 
+                  : "Cảm ơn bạn! Đơn hàng của bạn đã được ghi nhận thanh toán thành công qua cổng VNPAY.")
               : isFailed
               ? paymentInfo.message === "InvalidChecksum"
                 ? "Chữ ký checksum giao dịch không hợp lệ. Vui lòng liên hệ bộ phận hỗ trợ."
-                : `Giao dịch không thành công. Mã lỗi: ${paymentInfo.responseCode || "Unknown"}`
-              : "Hệ thống đang đối soát kết quả thanh toán từ VNPAY. Vui lòng đợi hoặc quay lại trang quản trị để xem trạng thái đơn hàng."}
+                : (isDeposit 
+                    ? `Nạp tiền không thành công. Mã lỗi: ${paymentInfo.responseCode || "Unknown"}`
+                    : `Giao dịch không thành công. Mã lỗi: ${paymentInfo.responseCode || "Unknown"}`)
+              : (isDeposit 
+                  ? "Hệ thống đang đối soát kết quả nạp tiền từ VNPAY. Vui lòng đợi hoặc quay lại trang ví để kiểm tra số dư."
+                  : "Hệ thống đang đối soát kết quả thanh toán từ VNPAY. Vui lòng đợi hoặc quay lại trang quản trị để xem trạng thái đơn hàng.")}
           </p>
         </div>
 
         {/* Transaction Details */}
         <div className="border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 rounded-2xl p-4 space-y-3 text-xs">
           <div className="flex justify-between items-center text-slate-500">
-            <span>Mã đơn hàng</span>
+            <span>{isDeposit ? "Mã giao dịch" : "Mã đơn hàng"}</span>
             <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
               #{paymentInfo.txnRef || "N/A"}
             </span>
@@ -111,10 +122,10 @@ const PaymentResult = () => {
         {/* Action Buttons */}
         <div className="flex flex-col gap-3 pt-2">
           <button
-            onClick={() => navigate(ROUTES.USER.ACCOUNT.DASHBOARD)}
+            onClick={() => navigate(isDeposit ? ROUTES.USER.ACCOUNT.WALLET : ROUTES.USER.ACCOUNT.DASHBOARD)}
             className="w-full py-3 bg-slate-950 hover:bg-slate-900 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-950 font-black rounded-2xl text-xs shadow-md transition flex items-center justify-center gap-1.5"
           >
-            Quay lại trang quản lý <ArrowRight className="w-4 h-4" />
+            {isDeposit ? "Quay lại ví của tôi" : "Quay lại trang quản lý"} <ArrowRight className="w-4 h-4" />
           </button>
 
           <Link

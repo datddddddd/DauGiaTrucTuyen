@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+import os
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from typing import List
 import random
@@ -8,6 +9,7 @@ from datetime import datetime
 import database, models
 from schemas.wallet import WalletResponse, TransactionCreate, TransactionResponse
 from routers.auth import get_current_user
+from routers.payment import vnpay_client
 
 router = APIRouter(prefix="/api/wallet", tags=["Wallet"])
 
@@ -39,6 +41,7 @@ def get_wallet(
 @router.post("/deposit", status_code=status.HTTP_201_CREATED)
 def deposit_money(
     transaction_data: TransactionCreate,
+    request: Request,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(database.get_db)
 ):
@@ -61,9 +64,16 @@ def deposit_money(
         db.commit()
         db.refresh(wallet)
     
-    # Create transaction record
-    is_vietqr = transaction_data.payment_method == "VietQR"
+    # Vô hiệu hóa VietQR
+    if transaction_data.payment_method == "VietQR":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Phương thức VietQR không còn được hỗ trợ. Vui lòng chọn VNPay!"
+        )
+        
+    is_vnpay = transaction_data.payment_method == "VNPay"
     
+    # Tạo bản ghi giao dịch nạp tiền
     transaction = models.Transaction(
         user_id=current_user.id,
         wallet_id=wallet.id,
@@ -71,26 +81,61 @@ def deposit_money(
         transaction_type="deposit",
         payment_method=transaction_data.payment_method,
         description=transaction_data.description or f"Nạp tiền qua {transaction_data.payment_method}",
-        status="pending" if is_vietqr else "completed",
+        status="pending" if is_vnpay else "completed",
         product_id=transaction_data.product_id
     )
     db.add(transaction)
-    
-    if not is_vietqr:
-        # Update wallet balance
-        wallet.balance += transaction_data.amount
-        wallet.updated_at = datetime.utcnow()
-    
     db.commit()
     db.refresh(transaction)
     
-    msg = "Yêu cầu nạp tiền VietQR đã được ghi nhận và đang chờ Admin duyệt!" if is_vietqr else "Nạp tiền thành công!"
-    return {
-        "status": "success",
-        "message": msg,
-        "transaction_id": transaction.id,
-        "new_balance": wallet.balance
-    }
+    if is_vnpay:
+        # Lấy base URL cho Return URL
+        vnp_ipn_url = os.getenv("VNP_IPN_URL")
+        if vnp_ipn_url:
+            backend_base = vnp_ipn_url.split("/api/")[0]
+        else:
+            backend_base = os.getenv("BACKEND_URL", str(request.base_url).rstrip("/"))
+        return_url = f"{backend_base}/api/payment/vnpay-return"
+        
+        # Tạo thông tin thanh toán VNPAY
+        txn_ref = f"DEP_{transaction.id}"
+        order_info = f"Nap tien vao vi tai khoan {current_user.username}"
+        ip_addr = request.client.host if request.client else "127.0.0.1"
+        
+        try:
+            payment_url = vnpay_client.get_payment_url(
+                return_url=return_url,
+                txn_ref=txn_ref,
+                amount=transaction.amount,
+                ip_addr=ip_addr,
+                order_info=order_info
+            )
+            return {
+                "status": "success",
+                "message": "Tạo cổng thanh toán VNPAY thành công!",
+                "payment_url": payment_url,
+                "transaction_id": transaction.id,
+                "new_balance": wallet.balance
+            }
+        except Exception as e:
+            transaction.status = "failed"
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Lỗi khởi tạo cổng thanh toán VNPAY: {str(e)}"
+            )
+    else:
+        # Cập nhật số dư nếu không dùng VNPay (các cổng instant khác)
+        wallet.balance += transaction_data.amount
+        wallet.updated_at = datetime.utcnow()
+        db.commit()
+        
+        return {
+            "status": "success",
+            "message": "Nạp tiền thành công!",
+            "transaction_id": transaction.id,
+            "new_balance": wallet.balance
+        }
 
 @router.post("/withdraw", status_code=status.HTTP_201_CREATED)
 def withdraw_money(
