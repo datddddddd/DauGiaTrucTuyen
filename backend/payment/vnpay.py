@@ -5,9 +5,9 @@ from datetime import datetime
 
 class VNPay:
     def __init__(self, tmn_code: str, hash_secret: str, payment_url: str):
-        self.tmn_code = tmn_code
-        self.hash_secret = hash_secret
-        self.payment_url = payment_url
+        self.tmn_code = tmn_code.strip() if tmn_code else ""
+        self.hash_secret = hash_secret.strip() if hash_secret else ""
+        self.payment_url = payment_url.strip() if payment_url else ""
 
     def get_payment_url(self, return_url: str, txn_ref: str, amount: int, ip_addr: str, order_info: str) -> str:
         params = {
@@ -28,8 +28,8 @@ class VNPay:
         # Sort parameters alphabetically by key
         sorted_params = sorted(params.items())
         
-        # Build query string using standard urllib.parse.urlencode
-        query_string = urllib.parse.urlencode(sorted_params)
+        # Build query string using urllib.parse.quote to force %20 instead of +
+        query_string = urllib.parse.urlencode(sorted_params, quote_via=urllib.parse.quote)
         
         # Generate HMAC-SHA512 checksum
         secure_hash = hmac.new(
@@ -38,11 +38,25 @@ class VNPay:
             hashlib.sha512
         ).hexdigest()
         
-        return f"{self.payment_url}?{query_string}&vnp_SecureHash={secure_hash}"
+        final_url = f"{self.payment_url}?{query_string}&vnp_SecureHash={secure_hash}"
+        
+        # Print debug logs exactly as requested
+        print(f"[VNPAY DEBUG] --- CREATE PAYMENT URL ---")
+        print(f"[VNPAY DEBUG] Danh sach params truoc khi hash: {params}")
+        print(f"[VNPAY DEBUG] Chuoi hashData chinh xac: {query_string}")
+        print(f"[VNPAY DEBUG] Gia tri vnp_SecureHash tao ra: {secure_hash}")
+        print(f"[VNPAY DEBUG] URL cuoi cung gui sang VNPAY: {final_url}")
+        
+        return final_url
 
     def verify_payment(self, params: dict) -> bool:
         received_hash = params.get("vnp_SecureHash")
+        
+        print(f"[VNPAY DEBUG] --- VERIFY IPN/RETURN PAYMENT ---")
+        print(f"[VNPAY DEBUG] Received Secure Hash: {received_hash}")
+        
         if not received_hash:
+            print(f"[VNPAY DEBUG] Verification Failed: Missing vnp_SecureHash")
             return False
             
         # Extract and sort VNPAY parameters, excluding empty or null values
@@ -55,8 +69,8 @@ class VNPay:
         }
         sorted_params = sorted(clean_params.items())
         
-        # Generate query string using standard urllib.parse.urlencode
-        query_string = urllib.parse.urlencode(sorted_params)
+        # Generate query string using urllib.parse.quote to force %20 instead of +
+        query_string = urllib.parse.urlencode(sorted_params, quote_via=urllib.parse.quote)
         
         # Generate hash
         calculated_hash = hmac.new(
@@ -65,4 +79,12 @@ class VNPay:
             hashlib.sha512
         ).hexdigest()
         
-        return calculated_hash.lower() == received_hash.lower()
+        is_valid = calculated_hash.lower() == received_hash.lower()
+        
+        # Print debug logs exactly as requested
+        print(f"[VNPAY DEBUG] Danh sach params truoc khi hash: {clean_params}")
+        print(f"[VNPAY DEBUG] Chuoi hashData chinh xac: {query_string}")
+        print(f"[VNPAY DEBUG] Gia tri vnp_SecureHash tao ra: {calculated_hash}")
+        print(f"[VNPAY DEBUG] Ket qua doi soat chu ky: {is_valid}")
+        
+        return is_valid
