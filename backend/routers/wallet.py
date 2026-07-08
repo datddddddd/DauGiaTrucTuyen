@@ -62,6 +62,8 @@ def deposit_money(
         db.refresh(wallet)
     
     # Create transaction record
+    is_vietqr = transaction_data.payment_method == "VietQR"
+    
     transaction = models.Transaction(
         user_id=current_user.id,
         wallet_id=wallet.id,
@@ -69,20 +71,23 @@ def deposit_money(
         transaction_type="deposit",
         payment_method=transaction_data.payment_method,
         description=transaction_data.description or f"Nạp tiền qua {transaction_data.payment_method}",
-        status="completed"  # In production, this would be "pending" until payment gateway confirms
+        status="pending" if is_vietqr else "completed",
+        product_id=transaction_data.product_id
     )
     db.add(transaction)
     
-    # Update wallet balance
-    wallet.balance += transaction_data.amount
-    wallet.updated_at = datetime.utcnow()
+    if not is_vietqr:
+        # Update wallet balance
+        wallet.balance += transaction_data.amount
+        wallet.updated_at = datetime.utcnow()
     
     db.commit()
     db.refresh(transaction)
     
+    msg = "Yêu cầu nạp tiền VietQR đã được ghi nhận và đang chờ Admin duyệt!" if is_vietqr else "Nạp tiền thành công!"
     return {
         "status": "success",
-        "message": "Nạp tiền thành công!",
+        "message": msg,
         "transaction_id": transaction.id,
         "new_balance": wallet.balance
     }
@@ -163,6 +168,7 @@ def get_transactions(
 @router.post("/payment/{product_id}")
 def pay_for_auction(
     product_id: int,
+    payment_method: str = "wallet",
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(database.get_db)
 ):
@@ -171,8 +177,8 @@ def pay_for_auction(
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sản phẩm không tồn tại!")
     
-    if product.status != "ended":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Phiên đấu giá chưa kết thúc!")
+    if product.status not in ["ended", "pending_payment"]:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Trạng thái sản phẩm không hợp lệ để thanh toán!")
     
     # Get highest bid
     highest_bid = db.query(models.Bid).filter(
@@ -186,31 +192,66 @@ def pay_for_auction(
         )
     
     wallet = db.query(models.Wallet).filter(models.Wallet.user_id == current_user.id).first()
-    if not wallet or wallet.balance < product.current_price:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="Số dư không đủ để thanh toán!"
+    if not wallet:
+        wallet = models.Wallet(user_id=current_user.id, balance=0)
+        db.add(wallet)
+        db.commit()
+        db.refresh(wallet)
+        
+    if payment_method == "VietQR":
+        # Create pending payment transaction
+        transaction = models.Transaction(
+            user_id=current_user.id,
+            wallet_id=wallet.id,
+            amount=product.current_price,
+            transaction_type="payment",
+            payment_method="VietQR",
+            description=f"Thanh toán VietQR cho sản phẩm: {product.title}",
+            status="pending",
+            product_id=product_id
         )
-    
-    # Create payment transaction
-    transaction = models.Transaction(
-        user_id=current_user.id,
-        wallet_id=wallet.id,
-        amount=product.current_price,
-        transaction_type="payment",
-        description=f"Thanh toán sản phẩm: {product.title}",
-        status="completed"
-    )
-    db.add(transaction)
-    
-    # Deduct from wallet
-    wallet.balance -= product.current_price
-    wallet.updated_at = datetime.utcnow()
-    
-    db.commit()
-    
-    return {
-        "status": "success",
-        "message": "Thanh toán thành công!",
-        "new_balance": wallet.balance
-    }
+        db.add(transaction)
+        
+        # Update product status to wait_confirm (Chờ xác nhận thanh toán)
+        product.status = "wait_confirm"
+        db.commit()
+        
+        return {
+            "status": "success",
+            "message": "Đã gửi thông báo xác nhận chuyển khoản. Vui lòng chờ Admin duyệt giao dịch!",
+            "new_balance": wallet.balance
+        }
+    else:
+        # Wallet balance payment
+        if wallet.balance < product.current_price:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail="Số dư ví ký quỹ không đủ để thanh toán!"
+            )
+        
+        # Create payment transaction
+        transaction = models.Transaction(
+            user_id=current_user.id,
+            wallet_id=wallet.id,
+            amount=product.current_price,
+            transaction_type="payment",
+            payment_method="wallet",
+            description=f"Thanh toán qua ví cho sản phẩm: {product.title}",
+            status="completed",
+            product_id=product_id
+        )
+        db.add(transaction)
+        
+        # Deduct from wallet
+        wallet.balance -= product.current_price
+        wallet.updated_at = datetime.utcnow()
+        
+        # Paid directly, status becomes confirmed (Đang soạn hàng)
+        product.status = "confirmed"
+        db.commit()
+        
+        return {
+            "status": "success",
+            "message": "Thanh toán thành công qua ví ký quỹ!",
+            "new_balance": wallet.balance
+        }

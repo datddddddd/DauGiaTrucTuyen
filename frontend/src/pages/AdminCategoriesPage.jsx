@@ -11,6 +11,7 @@ const AdminCategoriesPage = () => {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
+    parent_id: "",
   });
 
   useEffect(() => {
@@ -36,10 +37,15 @@ const AdminCategoriesPage = () => {
     setMessage("");
 
     try {
-      await categoryService.createCategory(formData);
+      const payload = {
+        name: formData.name,
+        description: formData.description,
+        parent_id: formData.parent_id ? parseInt(formData.parent_id, 10) : null,
+      };
+      await categoryService.createCategory(payload);
       setMessage("Tạo danh mục thành công!");
       setShowModal(false);
-      setFormData({ name: "", description: "" });
+      setFormData({ name: "", description: "", parent_id: "" });
       fetchCategories();
     } catch (error) {
       setMessage("Tạo thất bại: " + error.message);
@@ -54,11 +60,16 @@ const AdminCategoriesPage = () => {
     setMessage("");
 
     try {
-      await categoryService.updateCategory(editingCategory.id, formData);
+      const payload = {
+        name: formData.name,
+        description: formData.description,
+        parent_id: formData.parent_id ? parseInt(formData.parent_id, 10) : null,
+      };
+      await categoryService.updateCategory(editingCategory.id, payload);
       setMessage("Cập nhật danh mục thành công!");
       setShowModal(false);
       setEditingCategory(null);
-      setFormData({ name: "", description: "" });
+      setFormData({ name: "", description: "", parent_id: "" });
       fetchCategories();
     } catch (error) {
       setMessage("Cập nhật thất bại: " + error.message);
@@ -84,13 +95,14 @@ const AdminCategoriesPage = () => {
     setFormData({
       name: category.name,
       description: category.description || "",
+      parent_id: category.parent_id || "",
     });
     setShowModal(true);
   };
 
   const openCreateModal = () => {
     setEditingCategory(null);
-    setFormData({ name: "", description: "" });
+    setFormData({ name: "", description: "", parent_id: "" });
     setShowModal(true);
   };
 
@@ -143,7 +155,7 @@ const AdminCategoriesPage = () => {
                     <tr key={category.id} className="border-b border-brand-border">
                       <td className="p-3 text-brand-text">{category.id}</td>
                       <td className="p-3 font-medium text-brand-h">
-                        {category.name}
+                        {category.parent_id ? "  └─ " : ""}{category.name}
                       </td>
                       <td className="p-3 text-brand-text">
                         {category.description || "-"}
@@ -198,6 +210,27 @@ const AdminCategoriesPage = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-brand-h mb-1">
+                      Danh mục cha (Tùy chọn)
+                    </label>
+                    <select
+                      value={formData.parent_id}
+                      onChange={(e) =>
+                        setFormData({ ...formData, parent_id: e.target.value })
+                      }
+                      className="w-full p-3 rounded-xl border border-brand-border bg-brand-bg text-brand-h focus:outline-none focus:border-accent"
+                    >
+                      <option value="">Không có (Danh mục gốc)</option>
+                      {categories
+                        .filter((c) => !c.parent_id && (!editingCategory || c.id !== editingCategory.id))
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-brand-h mb-1">
                       Mô tả
                     </label>
                     <textarea
@@ -218,7 +251,7 @@ const AdminCategoriesPage = () => {
                       onClick={() => {
                         setShowModal(false);
                         setEditingCategory(null);
-                        setFormData({ name: "", description: "" });
+                        setFormData({ name: "", description: "", parent_id: "" });
                       }}
                       className="flex-1 py-3 border border-brand-border text-brand-h rounded-xl hover:bg-code-bg"
                     >

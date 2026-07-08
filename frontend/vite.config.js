@@ -1,9 +1,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import path from 'path' // 1. Import module 'path' của Node.js để xử lý đường dẫn
+import path from 'path'
 
 export default defineConfig({
   plugins: [ react() ],
+  appType: 'spa',
   server: {
     port: 5173,
     proxy: { 
@@ -13,7 +14,15 @@ export default defineConfig({
       } 
     }
   },
-  // 2. Thêm cấu hình định tuyến alias cho React và React DOM ở đây
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        seller: path.resolve(__dirname, 'seller.html'),
+        admin: path.resolve(__dirname, 'admin.html'),
+      },
+    },
+  },
   resolve: {
     alias: {
       'react': path.resolve(__dirname, './node_modules/react'),

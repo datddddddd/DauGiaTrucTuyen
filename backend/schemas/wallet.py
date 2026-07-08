@@ -13,6 +13,7 @@ class TransactionCreate(BaseModel):
     transaction_type: str  # "deposit", "withdraw", "payment"
     payment_method: Optional[str] = None  # "VNPay", "MoMo", "Stripe"
     description: Optional[str] = None
+    product_id: Optional[int] = None
 
 class TransactionResponse(BaseModel):
     id: int
@@ -22,4 +23,5 @@ class TransactionResponse(BaseModel):
     payment_method: Optional[str] = None
     description: Optional[str] = None
     status: str  # "pending", "completed", "failed"
+    product_id: Optional[int] = None
     created_at: str

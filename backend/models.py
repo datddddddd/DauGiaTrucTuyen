@@ -1,4 +1,4 @@
-﻿from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Index, Boolean
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Index, Boolean
 from sqlalchemy.orm import declarative_base, relationship
 import datetime
 
@@ -17,6 +17,8 @@ class User(Base):
     phone = Column(String, nullable=True)
     address = Column(String, nullable=True)
     avatar = Column(String, nullable=True)
+    is_blocked = Column(Boolean, default=False)
+    is_verified = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     # Mối quan hệ
@@ -43,6 +45,7 @@ class Product(Base):
     seller_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     images = Column(String, nullable=True)  # JSON string of image URLs
     condition = Column(String, default="new")  # new, used, refurbished
+    shipping_code = Column(String, nullable=True)  # Mã vận đơn giao hàng
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     # Mối quan hệ
@@ -72,10 +75,12 @@ class Category(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False, index=True)
     description = Column(Text, nullable=True)
+    parent_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     # Mối quan hệ
     products = relationship("Product", back_populates="category")
+    parent = relationship("Category", remote_side=[id], backref="subcategories")
 
 
 # 5. Bảng Watchlist (Yêu thích)
@@ -137,11 +142,13 @@ class Transaction(Base):
     payment_method = Column(String, nullable=True)  # VNPay, MoMo, Stripe
     description = Column(Text, nullable=True)
     status = Column(String, default="pending")  # pending, completed, failed
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     # Mối quan hệ
     user = relationship("User")
     wallet = relationship("Wallet", back_populates="transactions")
+    product = relationship("Product")
 
 
 # 9. Bảng Banners (Quản lý banner trang chủ)

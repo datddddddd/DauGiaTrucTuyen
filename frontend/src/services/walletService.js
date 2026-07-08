@@ -17,7 +17,7 @@ export const walletService = {
     return api.get("/wallet/transactions", { limit });
   },
 
-  async payForAuction(productId) {
-    return api.post(`/wallet/payment/${productId}`);
+  async payForAuction(productId, paymentMethod = "wallet") {
+    return api.post(`/wallet/payment/${productId}?payment_method=${paymentMethod}`);
   },
 };

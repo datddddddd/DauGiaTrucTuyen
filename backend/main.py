@@ -21,7 +21,7 @@ import database, models
 
 # Import routers
 
-from routers import auth, products, watchlist, notifications, wallet, categories, banners, admin
+from routers import auth, products, watchlist, notifications, wallet, categories, banners, admin, reports
 
 
 
@@ -90,6 +90,7 @@ app.include_router(categories.router)
 app.include_router(banners.router)
 
 app.include_router(admin.router)
+app.include_router(reports.router)
 
 # =====================================================================
 # LUỒNG WORKER TỰ ĐỘNG QUÉT & ĐÓNG PHIÊN ĐẤU GIÁ KHI HẾT GIỜ (REAL-TIME)
@@ -120,57 +121,11 @@ async def check_expired_auctions_worker():
                     winner = db.query(models.User).filter(models.User.id == highest_bid.user_id).first()
                     seller = db.query(models.User).filter(models.User.id == product.seller_id).first() if product.seller_id else None
 
-                    # Cập nhật ví tiền người thắng (trừ tiền)
-                    winner_wallet = db.query(models.Wallet).filter(models.Wallet.user_id == winner.id).first()
-                    if not winner_wallet:
-                        winner_wallet = models.Wallet(user_id=winner.id, balance=0)
-                        db.add(winner_wallet)
-                        db.commit()
-                        db.refresh(winner_wallet)
-
-                    winner_wallet.balance -= highest_bid.bid_amount
-                    winner_wallet.updated_at = datetime.utcnow()
-
-                    # Cập nhật ví tiền người bán (cộng tiền)
-                    seller_wallet = None
-                    if seller:
-                        seller_wallet = db.query(models.Wallet).filter(models.Wallet.user_id == seller.id).first()
-                        if not seller_wallet:
-                            seller_wallet = models.Wallet(user_id=seller.id, balance=0)
-                            db.add(seller_wallet)
-                            db.commit()
-                            db.refresh(seller_wallet)
-                        
-                        seller_wallet.balance += highest_bid.bid_amount
-                        seller_wallet.updated_at = datetime.utcnow()
-
-                    # Ghi nhận lịch sử giao dịch (Transaction Logs)
-                    winner_transaction = models.Transaction(
-                        user_id=winner.id,
-                        wallet_id=winner_wallet.id,
-                        amount=-highest_bid.bid_amount,
-                        transaction_type="payment",
-                        description=f"Thanh toán thắng đấu giá sản phẩm: {product.title}",
-                        status="completed"
-                    )
-                    db.add(winner_transaction)
-
-                    if seller and seller_wallet:
-                        seller_transaction = models.Transaction(
-                            user_id=seller.id,
-                            wallet_id=seller_wallet.id,
-                            amount=highest_bid.bid_amount,
-                            transaction_type="payment",
-                            description=f"Nhận tiền bán sản phẩm đấu giá: {product.title}",
-                            status="completed"
-                        )
-                        db.add(seller_transaction)
-
                     # Gửi thông báo hệ thống (Notifications)
                     winner_notification = models.Notification(
                         user_id=winner.id,
                         title="🎉 Bạn đã thắng một phiên đấu giá!",
-                        message=f"Chúc mừng! Bạn đã thắng sản phẩm '{product.title}' với giá {highest_bid.bid_amount:,} VNĐ. Số dư ví đã tự động được thanh toán.",
+                        message=f"Chúc mừng! Bạn đã thắng sản phẩm '{product.title}' với giá {highest_bid.bid_amount:,} VNĐ. Vui lòng vào trang quản lý để thanh toán đơn hàng bằng VietQR.",
                         notification_type="auction_won",
                         product_id=product.id,
                         is_read=False
@@ -181,7 +136,7 @@ async def check_expired_auctions_worker():
                         seller_notification = models.Notification(
                             user_id=seller.id,
                             title="💰 Sản phẩm của bạn đã bán thành công!",
-                            message=f"Sản phẩm '{product.title}' đã kết thúc đấu giá thành công! Người mua '{winner.username}' đã thanh toán {highest_bid.bid_amount:,} VNĐ.",
+                            message=f"Sản phẩm '{product.title}' đã kết thúc đấu giá thành công với giá {highest_bid.bid_amount:,} VNĐ. Đang chờ người mua '{winner.username}' thanh toán.",
                             notification_type="system",
                             product_id=product.id,
                             is_read=False
@@ -268,25 +223,26 @@ def seed_data():
 
         if db.query(models.Category).count() == 0:
 
-            categories = [
+            dien_tu = models.Category(name="Điện tử", description="Thiết bị điện tử công nghệ")
+            thoi_trang = models.Category(name="Thời trang", description="Quần áo, giày dép, phụ kiện")
+            xe_co = models.Category(name="Xe cộ", description="Phương tiện di chuyển")
 
-                models.Category(name="Điện tử", description="Điện thoại, máy tính bảng, laptop"),
-
-                models.Category(name="Thời trang", description="Quần áo, giày dép, phụ kiện"),
-
-                models.Category(name="Nhà cửa", description="Đồ gia dụng, nội thất"),
-
-                models.Category(name="Xe cộ", description="Ô tô, xe máy, xe đạp"),
-
-                models.Category(name="Sách", description="Sách, tạp chí, tài liệu"),
-
-            ]
-
-            db.add_all(categories)
-
+            db.add_all([dien_tu, thoi_trang, xe_co])
             db.commit()
 
-            print("📂 [SEED] Đã tạo danh mục mẫu.")
+            subcategories = [
+                models.Category(name="Điện thoại", parent_id=dien_tu.id, description="Điện thoại thông minh, máy tính bảng"),
+                models.Category(name="Laptop", parent_id=dien_tu.id, description="Máy tính xách tay"),
+                models.Category(name="Giày", parent_id=thoi_trang.id, description="Giày thể thao, giày da, dép"),
+                models.Category(name="Áo", parent_id=thoi_trang.id, description="Áo thun, sơ mi, áo khoác"),
+                models.Category(name="Xe máy", parent_id=xe_co.id, description="Xe máy phân khối lớn, xe ga, xe số"),
+                models.Category(name="Ô tô", parent_id=xe_co.id, description="Ô tô du lịch, xe tải, xe điện")
+            ]
+
+            db.add_all(subcategories)
+            db.commit()
+
+            print("📂 [SEED] Đã tạo danh mục mẫu và danh mục con.")
 
 
 
@@ -314,7 +270,8 @@ def seed_data():
 
         if db.query(models.Product).count() == 0:
 
-            electronics_cat = db.query(models.Category).filter(models.Category.name == "Điện tử").first()
+            laptop_cat = db.query(models.Category).filter(models.Category.name == "Laptop").first()
+            phone_cat = db.query(models.Category).filter(models.Category.name == "Điện thoại").first()
 
             db.add(models.Product(
 
@@ -322,7 +279,7 @@ def seed_data():
 
                 description="Core i7, RAM 16GB, RTX 4060",
 
-                category_id=electronics_cat.id if electronics_cat else None,
+                category_id=laptop_cat.id if laptop_cat else None,
 
                 start_price=25000000,
 
@@ -344,7 +301,7 @@ def seed_data():
 
                 description="Màu Titan Tự Nhiên, bản quốc tế nguyên seal",
 
-                category_id=electronics_cat.id if electronics_cat else None,
+                category_id=phone_cat.id if phone_cat else None,
 
                 start_price=29000000,
 

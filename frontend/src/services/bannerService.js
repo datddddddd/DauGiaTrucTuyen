@@ -1,23 +1,56 @@
-import api from "./api";
+import axios from "axios";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("token");
+  const headers = {};
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  return headers;
+};
 
 export const bannerService = {
   async getBanners(activeOnly = true) {
-    return api.get("/banners", { active_only: activeOnly });
+    const response = await axios.get(`${API_URL}/banners`, {
+      params: { active_only: activeOnly },
+      headers: getAuthHeaders()
+    });
+    return response.data;
   },
 
   async getBanner(bannerId) {
-    return api.get(`/banners/${bannerId}`);
+    const response = await axios.get(`${API_URL}/banners/${bannerId}`, {
+      headers: getAuthHeaders()
+    });
+    return response.data;
   },
 
-  async createBanner(bannerData) {
-    return api.post("/banners", bannerData);
+  async createBanner(formData) {
+    const response = await axios.post(`${API_URL}/banners`, formData, {
+      headers: {
+        ...getAuthHeaders(),
+        "Content-Type": "multipart/form-data"
+      }
+    });
+    return response.data;
   },
 
-  async updateBanner(bannerId, bannerData) {
-    return api.put(`/banners/${bannerId}`, bannerData);
+  async updateBanner(bannerId, formData) {
+    const response = await axios.put(`${API_URL}/banners/${bannerId}`, formData, {
+      headers: {
+        ...getAuthHeaders(),
+        "Content-Type": "multipart/form-data"
+      }
+    });
+    return response.data;
   },
 
   async deleteBanner(bannerId) {
-    return api.delete(`/banners/${bannerId}`);
-  },
+    const response = await axios.delete(`${API_URL}/banners/${bannerId}`, {
+      headers: getAuthHeaders()
+    });
+    return response.data;
+  }
 };

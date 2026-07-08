@@ -22,6 +22,7 @@ class ProductUpdate(BaseModel):
     status: Optional[str] = None
     images: Optional[list[str]] = None
     condition: Optional[str] = None
+    shipping_code: Optional[str] = None
 
 class ProductResponse(BaseModel):
     id: int
@@ -35,6 +36,7 @@ class ProductResponse(BaseModel):
     status: str
     images: Optional[list[str]] = None
     condition: Optional[str] = None
+    shipping_code: Optional[str] = None
     seller_id: Optional[int] = None
     bid_count: int = 0
 

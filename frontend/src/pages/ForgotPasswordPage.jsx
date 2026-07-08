@@ -1,7 +1,10 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { authService } from "../services";
+import { ROUTES } from "../constants/routes";
 
-const ForgotPasswordPage = ({ onSuccess }) => {
+const ForgotPasswordPage = () => {
+  const navigate = useNavigate();
   const [step, setStep] = useState(1); // 1: email, 2: otp, 3: success
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -159,7 +162,7 @@ const ForgotPasswordPage = ({ onSuccess }) => {
               Mật khẩu của bạn đã được đặt lại thành công!
             </p>
             <button
-              onClick={onSuccess}
+              onClick={() => navigate(ROUTES.PUBLIC.LOGIN)}
               className="px-6 py-3 bg-accent text-white font-bold rounded-xl hover:opacity-90"
             >
               Đăng nhập ngay
@@ -168,7 +171,7 @@ const ForgotPasswordPage = ({ onSuccess }) => {
         )}
 
         <button
-          onClick={() => onSuccess()}
+          onClick={() => navigate(ROUTES.PUBLIC.LOGIN)}
           className="w-full mt-4 text-sm text-brand-text hover:text-accent transition"
         >
           {step !== 3 && "Quay lại đăng nhập"}

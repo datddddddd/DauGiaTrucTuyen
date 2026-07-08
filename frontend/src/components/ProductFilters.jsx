@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { categoryService } from "../services";
 
 const ProductFilters = ({ onFilterChange, onSortChange }) => {
@@ -11,7 +11,7 @@ const ProductFilters = ({ onFilterChange, onSortChange }) => {
   });
   const [sortBy, setSortBy] = useState("newest");
 
-  useState(() => {
+  useEffect(() => {
     fetchCategories();
   }, []);
 
@@ -63,11 +63,14 @@ const ProductFilters = ({ onFilterChange, onSortChange }) => {
             className="w-full p-2 rounded-lg border border-brand-border bg-brand-bg text-brand-h text-sm focus:outline-none focus:border-accent"
           >
             <option value="">Tất cả</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.name}
-              </option>
-            ))}
+            {categories.map((cat) => {
+              const prefix = cat.parent_id ? "  └─ " : "";
+              return (
+                <option key={cat.id} value={cat.id}>
+                  {prefix}{cat.name}
+                </option>
+              );
+            })}
           </select>
         </div>
 
@@ -113,6 +116,7 @@ const ProductFilters = ({ onFilterChange, onSortChange }) => {
             <option value="highest_price">Giá cao nhất</option>
             <option value="lowest_price">Giá thấp nhất</option>
             <option value="ending_soon">Sắp kết thúc</option>
+            <option value="most_bids">Lượt thầu nhiều nhất</option>
           </select>
         </div>
       </div>

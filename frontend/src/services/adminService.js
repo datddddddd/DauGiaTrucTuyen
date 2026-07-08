@@ -36,4 +36,31 @@ export const adminService = {
   async approveTransaction(transactionId) {
     return api.put(`/admin/transactions/${transactionId}/approve`);
   },
+  async toggleUserBlock(userId) {
+    return api.put(`/admin/users/${userId}/toggle-block`);
+  },
+  async verifySeller(userId) {
+    return api.put(`/admin/users/${userId}/verify-seller`);
+  },
+  async resetUserPassword(userId) {
+    return api.put(`/admin/users/${userId}/reset-password`);
+  },
+  async approveProduct(productId) {
+    return api.put(`/admin/products/${productId}/approve`);
+  },
+  async rejectProduct(productId) {
+    return api.put(`/admin/products/${productId}/reject`);
+  },
+  async deleteProduct(productId) {
+    return api.delete(`/products/${productId}`);
+  },
+  async getReports() {
+    return api.get("/reports");
+  },
+  async resolveReport(reportId, actionData) {
+    return api.put(`/reports/${reportId}/resolve`, actionData);
+  },
+  async completeEscrow(productId) {
+    return api.post(`/admin/products/${productId}/complete-escrow`);
+  }
 };

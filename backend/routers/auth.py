@@ -36,6 +36,11 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     user = db.query(models.User).filter(models.User.username == username).first()
     if user is None:
         raise credentials_exception
+    if getattr(user, 'is_blocked', False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tài khoản của bạn đã bị khóa bởi Quản trị viên! Vui lòng liên hệ hỗ trợ."
+        )
     return user
 
 def get_current_admin(current_user: models.User = Depends(get_current_user)):
@@ -96,6 +101,11 @@ def login(user_data: UserLogin, db: Session = Depends(database.get_db)): # Bỏ 
     user = db.query(models.User).filter(models.User.username == user_data.username).first()
     if not user or not bcrypt.checkpw(user_data.password.encode('utf-8'), user.hashed_password.encode('utf-8')):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tài khoản hoặc mật khẩu không chính xác")
+    if getattr(user, 'is_blocked', False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tài khoản của bạn đã bị khóa bởi Quản trị viên!"
+        )
     
     token_expiry = datetime.now(timezone.utc) + timedelta(days=7 if user_data.remember_me else 1)
     token_payload = {
@@ -127,6 +137,8 @@ def get_me(current_user: models.User = Depends(get_current_user), db: Session = 
         "phone": getattr(current_user, 'phone', None),
         "address": getattr(current_user, 'address', None),
         "avatar": getattr(current_user, 'avatar', None),
+        "is_blocked": getattr(current_user, 'is_blocked', False),
+        "is_verified": getattr(current_user, 'is_verified', False),
         "bid_count": bid_count
     }
 

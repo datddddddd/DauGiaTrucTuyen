@@ -12,13 +12,37 @@ router = APIRouter(prefix="/api/categories", tags=["Categories"])
 def get_categories(db: Session = Depends(database.get_db)):
     categories = db.query(models.Category).all()
     
+    # Organize categories hierarchically (parent categories followed by their subcategories)
+    parents = [c for c in categories if c.parent_id is None]
+    subcategories = [c for c in categories if c.parent_id is not None]
+    
+    ordered_categories = []
+    for p in parents:
+        ordered_categories.append(p)
+        # Find subcategories of this parent
+        subs = [s for s in subcategories if s.parent_id == p.id]
+        ordered_categories.extend(subs)
+        
+    # Append any orphans just in case
+    for c in categories:
+        if c not in ordered_categories:
+            ordered_categories.append(c)
+            
     result = []
-    for cat in categories:
+    for cat in ordered_categories:
         product_count = db.query(models.Product).filter(models.Product.category_id == cat.id).count()
+        # If it's a parent category, sum up the products in all of its subcategories too
+        if cat.parent_id is None:
+            sub_ids = [s.id for s in subcategories if s.parent_id == cat.id]
+            if sub_ids:
+                sub_count = db.query(models.Product).filter(models.Product.category_id.in_(sub_ids)).count()
+                product_count += sub_count
+                
         result.append({
             "id": cat.id,
             "name": cat.name,
             "description": cat.description,
+            "parent_id": cat.parent_id,
             "product_count": product_count
         })
     
@@ -31,11 +55,19 @@ def get_category(category_id: int, db: Session = Depends(database.get_db)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy danh mục!")
     
     product_count = db.query(models.Product).filter(models.Product.category_id == category_id).count()
-    
+    # Sum subcategories count if it's a parent
+    if category.parent_id is None:
+        sub_ids = db.query(models.Category.id).filter(models.Category.parent_id == category_id).all()
+        sub_ids = [s[0] for s in sub_ids]
+        if sub_ids:
+            sub_count = db.query(models.Product).filter(models.Product.category_id.in_(sub_ids)).count()
+            product_count += sub_count
+            
     return {
         "id": category.id,
         "name": category.name,
         "description": category.description,
+        "parent_id": category.parent_id,
         "product_count": product_count
     }
 
@@ -55,7 +87,8 @@ def create_category(
     
     new_category = models.Category(
         name=category_data.name,
-        description=category_data.description
+        description=category_data.description,
+        parent_id=category_data.parent_id
     )
     db.add(new_category)
     db.commit()

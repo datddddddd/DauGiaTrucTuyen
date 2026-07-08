@@ -1,12 +1,20 @@
 import { useState, useEffect } from "react";
 import { bannerService } from "../services";
 
+const resolveImageUrl = (imgUrl) => {
+  if (!imgUrl) return "";
+  if (imgUrl.startsWith("http")) return imgUrl;
+  const backendBase = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api").replace("/api", "");
+  return `${backendBase}${imgUrl}`;
+};
+
 const AdminBannersPage = () => {
   const [banners, setBanners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingBanner, setEditingBanner] = useState(null);
   const [message, setMessage] = useState("");
+  const [file, setFile] = useState(null);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -35,11 +43,22 @@ const AdminBannersPage = () => {
 
   const handleCreate = async (e) => {
     e.preventDefault();
+    if (!file) {
+      setMessage("Vui lòng chọn hình ảnh từ máy tính!");
+      return;
+    }
     setLoading(true);
     setMessage("");
 
     try {
-      await bannerService.createBanner(formData);
+      const data = new FormData();
+      data.append("title", formData.title);
+      data.append("link_url", formData.link_url);
+      data.append("is_active", formData.is_active);
+      data.append("order", formData.order);
+      data.append("file", file);
+
+      await bannerService.createBanner(data);
       setMessage("Tạo banner thành công!");
       setShowModal(false);
       setFormData({
@@ -49,9 +68,10 @@ const AdminBannersPage = () => {
         is_active: true,
         order: 0,
       });
+      setFile(null);
       fetchBanners();
     } catch (error) {
-      setMessage("Tạo thất bại: " + error.message);
+      setMessage("Tạo thất bại: " + (error.response?.data?.detail || error.message));
     } finally {
       setLoading(false);
     }
@@ -63,7 +83,16 @@ const AdminBannersPage = () => {
     setMessage("");
 
     try {
-      await bannerService.updateBanner(editingBanner.id, formData);
+      const data = new FormData();
+      data.append("title", formData.title);
+      data.append("link_url", formData.link_url);
+      data.append("is_active", formData.is_active);
+      data.append("order", formData.order);
+      if (file) {
+        data.append("file", file);
+      }
+
+      await bannerService.updateBanner(editingBanner.id, data);
       setMessage("Cập nhật banner thành công!");
       setShowModal(false);
       setEditingBanner(null);
@@ -74,9 +103,10 @@ const AdminBannersPage = () => {
         is_active: true,
         order: 0,
       });
+      setFile(null);
       fetchBanners();
     } catch (error) {
-      setMessage("Cập nhật thất bại: " + error.message);
+      setMessage("Cập nhật thất bại: " + (error.response?.data?.detail || error.message));
     } finally {
       setLoading(false);
     }
@@ -113,6 +143,7 @@ const AdminBannersPage = () => {
       is_active: banner.is_active,
       order: banner.order,
     });
+    setFile(null);
     setShowModal(true);
   };
 
@@ -125,6 +156,7 @@ const AdminBannersPage = () => {
       is_active: true,
       order: 0,
     });
+    setFile(null);
     setShowModal(true);
   };
 
@@ -167,7 +199,7 @@ const AdminBannersPage = () => {
                 >
                   <div className="relative">
                     <img
-                      src={banner.image_url}
+                      src={resolveImageUrl(banner.image_url)}
                       alt={banner.title}
                       className="w-full h-48 object-cover"
                     />
@@ -187,11 +219,8 @@ const AdminBannersPage = () => {
                     <h3 className="font-semibold text-brand-h mb-2">
                       {banner.title}
                     </h3>
-                    <p className="text-sm text-brand-text mb-2">
-                      Thứ tự: {banner.order}
-                    </p>
                     <p className="text-sm text-brand-text mb-4">
-                      Link: {banner.link_url || "Không có"}
+                      Thứ tự: {banner.order}
                     </p>
                     <div className="flex gap-2">
                       <button
@@ -245,30 +274,20 @@ const AdminBannersPage = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-brand-h mb-1">
-                      URL hình ảnh
+                      Hình ảnh (Tải lên từ máy tính)
                     </label>
                     <input
-                      type="url"
-                      value={formData.image_url}
-                      onChange={(e) =>
-                        setFormData({ ...formData, image_url: e.target.value })
-                      }
-                      required
-                      className="w-full p-3 rounded-xl border border-brand-border bg-brand-bg text-brand-h focus:outline-none focus:border-accent"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setFile(e.target.files[0])}
+                      required={!editingBanner}
+                      className="w-full p-2 border border-brand-border rounded-xl text-brand-h focus:outline-none focus:border-accent bg-brand-bg"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-brand-h mb-1">
-                      Link (tùy chọn)
-                    </label>
-                    <input
-                      type="url"
-                      value={formData.link_url}
-                      onChange={(e) =>
-                        setFormData({ ...formData, link_url: e.target.value })
-                      }
-                      className="w-full p-3 rounded-xl border border-brand-border bg-brand-bg text-brand-h focus:outline-none focus:border-accent"
-                    />
+                    {editingBanner && (
+                      <p className="text-[10px] text-brand-text mt-1">
+                        Hiện tại: <span className="font-bold text-accent">{editingBanner.image_url}</span> (Để trống nếu giữ nguyên ảnh)
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-brand-h mb-1">

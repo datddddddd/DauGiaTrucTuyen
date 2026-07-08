@@ -1,15 +1,23 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts";
 import { watchlistService } from "../services";
 import { formatCurrency, formatCountdown } from "../utils";
 
 const WatchlistPage = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [watchlist, setWatchlist] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    fetchWatchlist();
-  }, []);
+    if (user && user.role === "admin") {
+      navigate("/");
+    } else {
+      fetchWatchlist();
+    }
+  }, [user, navigate]);
 
   const fetchWatchlist = async () => {
     try {

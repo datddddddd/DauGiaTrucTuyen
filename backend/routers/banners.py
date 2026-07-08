@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+import os
+import shutil
+from fastapi import APIRouter, Depends, HTTPException, status, Form, File, UploadFile
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 import database, models
-from schemas.banner import BannerCreate, BannerUpdate, BannerResponse
+from schemas.banner import BannerResponse
 from routers.auth import get_current_admin
 
 router = APIRouter(prefix="/api/banners", tags=["Banners"])
@@ -51,16 +53,31 @@ def get_banner(banner_id: int, db: Session = Depends(database.get_db)):
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_banner(
-    banner_data: BannerCreate,
+    title: str = Form(...),
+    link_url: Optional[str] = Form(None),
+    is_active: bool = Form(True),
+    order: int = Form(0),
+    file: UploadFile = File(...),
     current_admin: models.User = Depends(get_current_admin),
     db: Session = Depends(database.get_db)
 ):
+    upload_dir = "static/uploads"
+    os.makedirs(upload_dir, exist_ok=True)
+
+    filename = file.filename.replace(" ", "_")
+    path = os.path.join(upload_dir, filename)
+
+    with open(path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    image_url = f"/static/uploads/{filename}"
+
     new_banner = models.Banner(
-        title=banner_data.title,
-        image_url=banner_data.image_url,
-        link_url=banner_data.link_url,
-        is_active=banner_data.is_active,
-        order=banner_data.order
+        title=title,
+        image_url=image_url,
+        link_url=link_url,
+        is_active=is_active,
+        order=order
     )
     db.add(new_banner)
     db.commit()
@@ -71,7 +88,11 @@ def create_banner(
 @router.put("/{banner_id}")
 def update_banner(
     banner_id: int,
-    banner_data: BannerUpdate,
+    title: Optional[str] = Form(None),
+    link_url: Optional[str] = Form(None),
+    is_active: Optional[bool] = Form(None),
+    order: Optional[int] = Form(None),
+    file: Optional[UploadFile] = File(None),
     current_admin: models.User = Depends(get_current_admin),
     db: Session = Depends(database.get_db)
 ):
@@ -79,13 +100,23 @@ def update_banner(
     if not banner:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy banner!")
     
-    updates = banner_data.model_dump(exclude_unset=True)
-    if not updates:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Không có dữ liệu để cập nhật")
-    
-    for field, value in updates.items():
-        if hasattr(banner, field):
-            setattr(banner, field, value)
+    if title is not None:
+        banner.title = title
+    if link_url is not None:
+        banner.link_url = link_url
+    if is_active is not None:
+        banner.is_active = is_active
+    if order is not None:
+        banner.order = order
+        
+    if file is not None:
+        upload_dir = "static/uploads"
+        os.makedirs(upload_dir, exist_ok=True)
+        filename = file.filename.replace(" ", "_")
+        path = os.path.join(upload_dir, filename)
+        with open(path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        banner.image_url = f"/static/uploads/{filename}"
     
     db.commit()
     db.refresh(banner)
