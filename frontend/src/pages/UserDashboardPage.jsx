@@ -569,11 +569,21 @@ const UserDashboardPage = () => {
               {watchlist.map((item) => (
                 <div key={item.id} className="p-4 rounded-xl border border-slate-150 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex justify-between items-center gap-4">
                   <div className="space-y-1 text-xs">
-                    <h4 className="font-bold text-slate-900 dark:text-white">{item.title}</h4>
+                    <Link to={`/auction/${item.product_id}`} className="hover:underline">
+                      <h4 className="font-bold text-slate-900 dark:text-white hover:text-violet-600 transition">
+                        {item.title}
+                      </h4>
+                    </Link>
                     <p className="text-slate-500">Giá hiện tại: <span className="text-red-500 font-bold">{formatCurrency(item.current_price)}</span></p>
                     <p className="text-[10px] text-slate-400">⏳ Thời gian còn lại: {item.timeLeft}</p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 shrink-0">
+                    <Link
+                      to={`/auction/${item.product_id}`}
+                      className="px-2.5 py-1.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:opacity-90 rounded-lg text-[10px] font-bold transition inline-block text-center"
+                    >
+                      Đấu giá
+                    </Link>
                     <button
                       onClick={() => removeFromWatchlist(item.id)}
                       className="px-2.5 py-1.5 border border-red-500/20 text-red-500 hover:bg-red-500/10 rounded-lg text-[10px]"

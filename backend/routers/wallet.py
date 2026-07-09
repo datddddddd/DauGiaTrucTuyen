@@ -98,7 +98,7 @@ def deposit_money(
         return_url = f"{backend_base}/api/payment/vnpay-return"
         
         # Tạo thông tin thanh toán VNPAY
-        txn_ref = f"DEP_{transaction.id}"
+        txn_ref = f"DEP{transaction.id}"
         order_info = f"Nap tien vao vi tai khoan {current_user.username}"
         ip_addr = request.client.host if request.client else "127.0.0.1"
         

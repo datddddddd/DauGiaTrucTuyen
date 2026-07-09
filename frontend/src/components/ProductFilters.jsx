@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { categoryService } from "../services";
 
-const ProductFilters = ({ onFilterChange, onSortChange }) => {
+const ProductFilters = ({ filters: parentFilters, onFilterChange, onSortChange }) => {
   const [categories, setCategories] = useState([]);
   const [filters, setFilters] = useState({
     category_id: "",
@@ -10,6 +10,12 @@ const ProductFilters = ({ onFilterChange, onSortChange }) => {
     search: "",
   });
   const [sortBy, setSortBy] = useState("newest");
+
+  useEffect(() => {
+    if (parentFilters) {
+      setFilters(parentFilters);
+    }
+  }, [parentFilters]);
 
   useEffect(() => {
     fetchCategories();

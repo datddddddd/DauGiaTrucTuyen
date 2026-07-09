@@ -1,7 +1,7 @@
 import hashlib
 import hmac
 import urllib.parse
-from datetime import datetime
+from datetime import datetime, timedelta
 
 class VNPay:
     def __init__(self, tmn_code: str, hash_secret: str, payment_url: str):
@@ -12,6 +12,11 @@ class VNPay:
         self.responseData = {}
 
     def get_payment_url(self, return_url: str, txn_ref: str, amount: int, ip_addr: str, order_info: str) -> str:
+        # Guarantee GMT+7 (Vietnam timezone) date generation regardless of server timezone
+        gmt_plus_7 = datetime.utcnow() + timedelta(hours=7)
+        create_date = gmt_plus_7.strftime("%Y%m%d%H%M%S")
+        expire_date = (gmt_plus_7 + timedelta(minutes=15)).strftime("%Y%m%d%H%M%S")
+
         self.requestData = {
             "vnp_Version": "2.1.0",
             "vnp_Command": "pay",
@@ -24,7 +29,8 @@ class VNPay:
             "vnp_Locale": "vn",
             "vnp_ReturnUrl": return_url,
             "vnp_IpAddr": ip_addr or "127.0.0.1",
-            "vnp_CreateDate": datetime.now().strftime("%Y%m%d%H%M%S"),
+            "vnp_CreateDate": create_date,
+            "vnp_ExpireDate": expire_date,
         }
         
         # --- FROM OFFICIAL SDK (DO NOT MODIFY ALGORITHM) ---

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../contexts";
 import { watchlistService } from "../services";
 import { formatCurrency, formatCountdown } from "../utils";
@@ -84,9 +84,11 @@ const WatchlistPage = () => {
                   key={item.id}
                   className="border border-brand-border rounded-xl p-5 bg-brand-bg hover:shadow-lg transition"
                 >
-                  <h3 className="font-semibold text-brand-h mb-2 line-clamp-1">
-                    {item.product_title}
-                  </h3>
+                  <Link to={`/auction/${item.product_id}`} className="hover:underline">
+                    <h3 className="font-semibold text-brand-h mb-2 line-clamp-1 hover:text-violet-600 transition">
+                      {item.product_title}
+                    </h3>
+                  </Link>
                   <p className="text-sm text-brand-text mb-4">
                     Giá hiện tại:{" "}
                     <span className="text-red-500 font-bold">
@@ -101,12 +103,21 @@ const WatchlistPage = () => {
                       </span>
                     </p>
                   )}
-                  <button
-                    onClick={() => handleRemove(item.id)}
-                    className="w-full py-2 border border-red-500 text-red-500 rounded-lg text-sm font-medium hover:bg-red-50 transition"
-                  >
-                    Xóa khỏi danh sách
-                  </button>
+                  <div className="flex gap-2 mt-4">
+                    <Link
+                      to={`/auction/${item.product_id}`}
+                      className="flex-1 text-center py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg text-sm font-bold hover:opacity-90 transition block"
+                    >
+                      Đấu giá ngay
+                    </Link>
+                    <button
+                      onClick={() => handleRemove(item.id)}
+                      className="px-3 py-2 border border-red-500/25 text-red-500 hover:bg-red-500/10 rounded-lg text-sm font-medium transition"
+                      title="Xóa khỏi danh sách yêu thích"
+                    >
+                      Xóa
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

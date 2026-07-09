@@ -132,9 +132,9 @@ def vnpay_return(request: Request, db: Session = Depends(database.get_db)):
         )
 
     # Xử lý giao dịch nạp tiền ví (Wallet Deposit)
-    if txn_ref.startswith("DEP_"):
+    if txn_ref.startswith("DEP"):
         try:
-            tx_id = int(txn_ref.split("_")[1])
+            tx_id = int(txn_ref.replace("DEP", ""))
         except (ValueError, IndexError):
             return RedirectResponse(
                 url=f"{FRONTEND_URL}/payment-result?status=FAILED&message=InvalidTransactionReference"
@@ -279,9 +279,9 @@ def vnpay_ipn(request: Request, db: Session = Depends(database.get_db)):
         return {"RspCode": "01", "Message": "Order not found"}
 
     # Xử lý IPN cho nạp tiền ví (Wallet Deposit)
-    if txn_ref.startswith("DEP_"):
+    if txn_ref.startswith("DEP"):
         try:
-            tx_id = int(txn_ref.split("_")[1])
+            tx_id = int(txn_ref.replace("DEP", ""))
         except (ValueError, IndexError):
             return {"RspCode": "01", "Message": "Order not found"}
             

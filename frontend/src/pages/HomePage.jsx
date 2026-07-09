@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts";
 import api from "../services/api";
 import { bannerService } from "../services";
@@ -61,6 +61,29 @@ const HomePage = () => {
     search: "",
   });
   const [sortBy, setSortBy] = useState("newest");
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Load initial filter from URL or localStorage once on mount
+  useEffect(() => {
+    const categoryIdFromUrl = searchParams.get("category_id");
+    const categoryIdFromStorage = localStorage.getItem("selected_category_id");
+
+    let initialCategoryId = "";
+    if (categoryIdFromUrl) {
+      initialCategoryId = categoryIdFromUrl;
+    } else if (categoryIdFromStorage) {
+      initialCategoryId = categoryIdFromStorage;
+      localStorage.removeItem("selected_category_id");
+      setSearchParams({ category_id: categoryIdFromStorage });
+    }
+
+    if (initialCategoryId) {
+      setFilters((prev) => ({
+        ...prev,
+        category_id: initialCategoryId,
+      }));
+    }
+  }, []);
 
   // Fetch products from server
   const fetchProducts = useCallback(async () => {
@@ -241,7 +264,7 @@ const HomePage = () => {
       </div>
 
       {/* Product filters */}
-      <ProductFilters onFilterChange={setFilters} onSortChange={setSortBy} />
+      <ProductFilters filters={filters} onFilterChange={setFilters} onSortChange={setSortBy} />
 
       {/* Product grid */}
       {loading ? (

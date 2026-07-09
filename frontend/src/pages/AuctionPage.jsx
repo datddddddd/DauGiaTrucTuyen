@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import BidHistory from "../BidHistory";
 import WinDialog from "../components/WinDialog";
 import { useWinDialog } from "../hooks/useWinDialog";
-import { productService } from "../services";
+import { productService, watchlistService } from "../services";
 import { ROUTES } from "../constants/routes";
 import { useAuth } from "../contexts";
 
@@ -36,6 +36,7 @@ const AuctionPage = () => {
   const [error, setError] = useState("");
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [reviews, setReviews] = useState([]);
+  const [isInWatchlist, setIsInWatchlist] = useState(false);
   
   // Report states
   const [showReportModal, setShowReportModal] = useState(false);
@@ -106,6 +107,43 @@ const AuctionPage = () => {
         .catch(() => setReviews([]));
     }
   }, [id]);
+
+  useEffect(() => {
+    const checkWatchlist = async () => {
+      if (!user) return;
+      try {
+        const inWatchlist = await watchlistService.isInWatchlist(Number(id));
+        setIsInWatchlist(inWatchlist);
+      } catch (err) {
+        console.error("Lỗi kiểm tra mục yêu thích:", err);
+      }
+    };
+    if (user && id) {
+      checkWatchlist();
+    }
+  }, [user, id]);
+
+  const handleWatchlistToggle = async () => {
+    if (!user) {
+      alert("Vui lòng đăng nhập để thêm sản phẩm vào danh sách yêu thích!");
+      navigate(ROUTES.PUBLIC.LOGIN);
+      return;
+    }
+    try {
+      if (isInWatchlist) {
+        await watchlistService.removeProductFromWatchlist(Number(id));
+        setIsInWatchlist(false);
+        setMessage("💔 Đã xóa khỏi danh sách yêu thích!");
+      } else {
+        await watchlistService.addToWatchlist(Number(id));
+        setIsInWatchlist(true);
+        setMessage("❤️ Đã thêm vào danh sách yêu thích!");
+      }
+    } catch (err) {
+      console.error(err);
+      setMessage(`❌ Lỗi: ${err.message || "Không thể thực hiện tác vụ"}`);
+    }
+  };
 
   useEffect(() => {
     if (!product) return;
@@ -380,12 +418,28 @@ const AuctionPage = () => {
           >
             ⬅️ Trở về Trang chủ
           </button>
-          <button
-            onClick={() => setShowReportModal(true)}
-            className="px-4 py-2 border rounded-xl text-sm font-medium transition border-red-500/30 text-red-500 hover:bg-red-500/10"
-          >
-            🚨 Báo cáo vi phạm
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleWatchlistToggle}
+              className={`px-4 py-2 border rounded-xl text-sm font-medium transition flex items-center gap-1.5 ${
+                isInWatchlist
+                  ? "border-red-500 text-red-500 font-bold"
+                  : "border-slate-350 dark:border-slate-850 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              }`}
+              style={{
+                backgroundColor: isInWatchlist ? "rgba(239, 68, 68, 0.1)" : "var(--surface-bg)",
+                borderColor: isInWatchlist ? "#ef4444" : "var(--border)",
+              }}
+            >
+              {isInWatchlist ? "❤️ Đã yêu thích" : "🤍 Thêm yêu thích"}
+            </button>
+            <button
+              onClick={() => setShowReportModal(true)}
+              className="px-4 py-2 border rounded-xl text-sm font-medium transition border-red-500/30 text-red-500 hover:bg-red-500/10"
+            >
+              🚨 Báo cáo vi phạm
+            </button>
+          </div>
         </div>
 
         <div

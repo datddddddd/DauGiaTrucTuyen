@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../contexts";
 import { ROUTES } from "../constants/routes";
 import { getHomePathByRole } from "../utils/navigation";
+import { categoryService } from "../services";
 import {
   Hammer,
   Shield,
@@ -44,6 +45,57 @@ const LandingPage = () => {
   // Search Mock state
   const [searchVal, setSearchVal] = useState("");
   const [copySuccess, setCopySuccess] = useState(false);
+
+  // Dynamic Categories State
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const data = await categoryService.getCategories();
+        setCategories(data);
+      } catch (err) {
+        console.error("Lỗi khi tải danh mục:", err);
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  const getCategoryIcon = (name) => {
+    const normalized = name.toLowerCase();
+    if (normalized.includes("xa xỉ") || normalized.includes("luxury")) return <Diamond className="w-4.5 h-4.5" strokeWidth={2} />;
+    if (normalized.includes("công nghệ") || normalized.includes("điện tử") || normalized.includes("laptop") || normalized.includes("điện thoại") || normalized.includes("phone") || normalized.includes("computer") || normalized.includes("máy tính")) {
+      return <Laptop className="w-4.5 h-4.5" strokeWidth={2} />;
+    }
+    if (normalized.includes("nghệ thuật") || normalized.includes("art") || normalized.includes("tranh") || normalized.includes("vẽ")) {
+      return <PaintbrushIcon className="w-4.5 h-4.5" />;
+    }
+    if (normalized.includes("trang sức") || normalized.includes("jewelry") || normalized.includes("vàng") || normalized.includes("bạc") || normalized.includes("nhẫn") || normalized.includes("kim cương")) {
+      return <Diamond className="w-4.5 h-4.5" strokeWidth={2} />;
+    }
+    if (normalized.includes("xe") || normalized.includes("car") || normalized.includes("phương tiện") || normalized.includes("ô tô") || normalized.includes("moto")) {
+      return <Car className="w-4.5 h-4.5" strokeWidth={2} />;
+    }
+    if (normalized.includes("nhà") || normalized.includes("đất") || normalized.includes("bất động sản") || normalized.includes("real estate") || normalized.includes("căn hộ")) {
+      return <Key className="w-4.5 h-4.5" strokeWidth={2} />;
+    }
+    if (normalized.includes("sưu tầm") || normalized.includes("cổ") || normalized.includes("hiếm") || normalized.includes("collect")) {
+      return <FileText className="w-4.5 h-4.5" strokeWidth={2} />;
+    }
+    if (normalized.includes("thời trang") || normalized.includes("quần") || normalized.includes("áo") || normalized.includes("giày") || normalized.includes("dép") || normalized.includes("túi") || normalized.includes("ví") || normalized.includes("fashion")) {
+      return <Shirt className="w-4.5 h-4.5" strokeWidth={2} />;
+    }
+    return <Sparkles className="w-4.5 h-4.5" strokeWidth={2} />;
+  };
+
+  const handleCategoryClick = (cat) => {
+    if (isAuthenticated) {
+      navigate(`/auctions?category_id=${cat.id}`);
+    } else {
+      localStorage.setItem("selected_category_id", cat.id);
+      navigate(ROUTES.PUBLIC.LOGIN);
+    }
+  };
 
   // Simulated Live Auction Data for Landing Showcase
   const [mockProducts, setMockProducts] = useState([
@@ -474,25 +526,28 @@ const LandingPage = () => {
           Các danh mục đấu giá tương thích
         </h3>
         
-        {/* Row of 8 categories mockup tiles */}
+        {/* Row of categories tiles */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
-          {[
-            { id: "01", name: "Xa xỉ", icon: <Clock className="w-4.5 h-4.5" strokeWidth={2} /> },
-            { id: "02", name: "Công nghệ", icon: <Laptop className="w-4.5 h-4.5" strokeWidth={2} /> },
-            { id: "03", name: "Nghệ thuật", icon: <PaintbrushIcon className="w-4.5 h-4.5" /> },
-            { id: "04", name: "Trang sức", icon: <Diamond className="w-4.5 h-4.5" strokeWidth={2} /> },
-            { id: "05", name: "Xe cộ", icon: <Car className="w-4.5 h-4.5" strokeWidth={2} /> },
-            { id: "06", name: "Nhà đất", icon: <Key className="w-4.5 h-4.5" strokeWidth={2} /> },
-            { id: "07", name: "Sưu tầm", icon: <FileText className="w-4.5 h-4.5" strokeWidth={2} /> },
-            { id: "08", name: "Thời trang", icon: <Shirt className="w-4.5 h-4.5" strokeWidth={2} /> }
-          ].map((cat) => (
+          {(categories.length > 0 ? categories : [
+            { id: 1, name: "Xa xỉ" },
+            { id: 2, name: "Công nghệ" },
+            { id: 3, name: "Nghệ thuật" },
+            { id: 4, name: "Trang sức" },
+            { id: 5, name: "Xe cộ" },
+            { id: 6, name: "Nhà đất" },
+            { id: 7, name: "Sưu tầm" },
+            { id: 8, name: "Thời trang" }
+          ]).map((cat, index) => (
             <div
               key={cat.id}
+              onClick={() => handleCategoryClick(cat)}
               className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-center shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 transition flex flex-col items-center justify-center gap-2.5 cursor-pointer group"
             >
-              <span className="text-[9px] font-black text-slate-400 select-none block self-start">{cat.id}</span>
+              <span className="text-[9px] font-black text-slate-400 select-none block self-start">
+                {String(index + 1).padStart(2, "0")}
+              </span>
               <div className="w-9 h-9 rounded-xl bg-slate-50 dark:bg-slate-850 flex items-center justify-center text-slate-800 dark:text-slate-200 group-hover:scale-105 transition-transform">
-                {cat.icon}
+                {getCategoryIcon(cat.name)}
               </div>
               <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 tracking-wide">{cat.name}</span>
             </div>
