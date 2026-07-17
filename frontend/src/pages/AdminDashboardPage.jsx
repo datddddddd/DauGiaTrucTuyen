@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { adminService, productService } from "../services";
 import { useAuth } from "../contexts";
-import { formatCurrency, formatNumber } from "../utils";
+import { formatCurrency, formatNumber, formatDate } from "../utils";
 import {
   BarChart,
   Bar,
@@ -36,24 +36,53 @@ const AdminDashboardPage = () => {
   const [logs, setLogs] = useState([]);
   const [transactions, setTransactions] = useState([]);
 
+  // Payments Management States
+  const [payments, setPayments] = useState([]);
+  const [paymentStats, setPaymentStats] = useState({
+    total_revenue: 0,
+    waiting_for_payout: 0,
+    released_payments_count: 0,
+    success_payments_count: 0,
+    failed_payments_count: 0,
+    pending_payments_count: 0,
+    waiting_payments_count: 0,
+    total_transactions: 0,
+    daily_revenue: []
+  });
+  const [selectedPayment, setSelectedPayment] = useState(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentFilters, setPaymentFilters] = useState({
+    search: "",
+    status: "",
+    startDate: "",
+    endDate: ""
+  });
+  const [escrowSubTab, setEscrowSubTab] = useState("vnpay");
+
   const COLORS = ["#f59e0b", "#6366f1", "#10b981", "#ef4444", "#8b5cf6"];
 
   useEffect(() => {
     if (user && user.role === "admin") {
       fetchDashboardData();
+      const interval = setInterval(() => {
+        fetchDashboardData(false);
+      }, 5000);
+      return () => clearInterval(interval);
     }
   }, [user]);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (showLoading = true) => {
     try {
-      setLoading(true);
-      const [statsData, usersData, productsData, logsData, reportsData, transactionsData] = await Promise.all([
+      if (showLoading) setLoading(true);
+      const [statsData, usersData, productsData, logsData, reportsData, transactionsData, paymentsData, paymentStatsData] = await Promise.all([
         adminService.getStats().catch(() => null),
         adminService.getAllUsers().catch(() => []),
         adminService.getAllProducts().catch(() => []),
         adminService.getSystemLogs({ limit: 100 }).catch(() => []),
         adminService.getReports().catch(() => []),
         adminService.getAllTransactions().catch(() => []),
+        adminService.getAllPayments().catch(() => []),
+        adminService.getPaymentStats().catch(() => null),
       ]);
 
       const fallbackStats = statsData || {
@@ -71,6 +100,18 @@ const AdminDashboardPage = () => {
       setStats(fallbackStats);
       setUsers(usersData);
       setProducts(productsData);
+      setPayments(paymentsData || []);
+      setPaymentStats(paymentStatsData || {
+        total_revenue: 0,
+        waiting_for_payout: 0,
+        released_payments_count: 0,
+        success_payments_count: 0,
+        failed_payments_count: 0,
+        pending_payments_count: 0,
+        waiting_payments_count: 0,
+        total_transactions: 0,
+        daily_revenue: []
+      });
 
       if (logsData && logsData.length > 0) {
         setLogs(logsData.map(l => ({
@@ -155,6 +196,30 @@ const AdminDashboardPage = () => {
       fetchDashboardData();
     } catch (error) {
       triggerToast(error.response?.data?.detail || "Lỗi giải ngân tiền!", "error");
+    }
+  };
+
+  const handleReleasePayment = async (paymentId) => {
+    try {
+      const response = await adminService.releasePayment(paymentId);
+      triggerToast(response.message || "Giải ngân tiền thầu cho Người bán thành công!");
+      fetchDashboardData();
+      if (showPaymentModal && selectedPayment && selectedPayment.id === paymentId) {
+        const updatedDetail = await adminService.getPaymentDetails(paymentId);
+        setSelectedPayment(updatedDetail);
+      }
+    } catch (error) {
+      triggerToast(error.response?.data?.detail || "Lỗi giải ngân tiền!", "error");
+    }
+  };
+
+  const handleViewPaymentDetails = async (paymentId) => {
+    try {
+      const details = await adminService.getPaymentDetails(paymentId);
+      setSelectedPayment(details);
+      setShowPaymentModal(true);
+    } catch (error) {
+      triggerToast("Lỗi khi tải chi tiết thanh toán!", "error");
     }
   };
 
@@ -260,6 +325,32 @@ const AdminDashboardPage = () => {
     return matchesSearch && matchesRole;
   });
 
+  // Filtering payments list (VNPAY Transactions)
+  const filteredPayments = payments.filter((pay) => {
+    const matchesSearch =
+      !paymentFilters.search ||
+      pay.product.title.toLowerCase().includes(paymentFilters.search.toLowerCase()) ||
+      pay.buyer.username.toLowerCase().includes(paymentFilters.search.toLowerCase()) ||
+      (pay.seller && pay.seller.username && pay.seller.username.toLowerCase().includes(paymentFilters.search.toLowerCase()));
+      
+    const matchesStatus = !paymentFilters.status || pay.status === paymentFilters.status;
+    
+    let matchesDate = true;
+    if (paymentFilters.startDate) {
+      const start = new Date(paymentFilters.startDate);
+      const payDate = new Date(pay.created_at);
+      matchesDate = matchesDate && payDate >= start;
+    }
+    if (paymentFilters.endDate) {
+      const end = new Date(paymentFilters.endDate);
+      end.setHours(23, 59, 59, 999);
+      const payDate = new Date(pay.created_at);
+      matchesDate = matchesDate && payDate <= end;
+    }
+    
+    return matchesSearch && matchesStatus && matchesDate;
+  });
+
   return (
     <div className="min-h-screen bg-[#f6f5f0] dark:bg-[#0b0f14] p-4 md:p-6 transition-colors duration-300 font-sans">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -330,7 +421,7 @@ const AdminDashboardPage = () => {
             { id: "overview", label: "📊 Tổng quan" },
             { id: "users", label: "👥 Người dùng (1.1)" },
             { id: "products", label: "📦 Sản phẩm & Đấu giá (1.2 / 1.3)" },
-            { id: "escrow", label: "💳 Thanh toán & Ký quỹ" },
+            { id: "escrow", label: "💳 Quản lý thanh toán" },
             { id: "disputes", label: "⚖️ Tranh chấp & Khiếu nại (1.4)" },
             { id: "system-logs", label: "📜 Nhật ký hệ thống (1.6)" },
           ].map((tab) => (
@@ -404,10 +495,10 @@ const AdminDashboardPage = () => {
               <h3 className="text-xs font-black text-slate-400 mb-4 uppercase tracking-wider">Doanh thu sàn</h3>
               <div className="h-60">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={revenueData}>
+                  <BarChart data={revenueData} margin={{ top: 10, right: 10, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="name" />
-                    <YAxis />
+                    <YAxis tickFormatter={(v) => v >= 1000000 ? (v * 0.000001).toLocaleString("vi-VN") + " Tr" : v.toLocaleString("vi-VN")} width={80} />
                     <Tooltip formatter={(v) => formatCurrency(v)} />
                     <Bar dataKey="value" fill="#6366f1" radius={[8, 8, 0, 0]} />
                   </BarChart>
@@ -633,131 +724,355 @@ const AdminDashboardPage = () => {
 
         {activeTab === "escrow" && (
           <div className="space-y-6 animate-fade-in text-xs">
-            {/* VietQR Transactions Approvals */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">
-                  💳 Duyệt giao dịch VietQR (Nạp tiền / Thanh toán)
-                </h3>
-                <span className="text-[10px] bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 px-2 py-0.5 rounded font-bold uppercase">
-                  {transactions.filter(t => t.status === "pending").length} Giao dịch chờ duyệt
-                </span>
+            {/* Top statistics overview for Payments */}
+            <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Revenue</span>
+                <span className="text-lg font-black text-indigo-500 mt-2">{formatCurrency(paymentStats.total_revenue)}</span>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 font-bold uppercase">
-                      <th className="p-3">Mã GD</th>
-                      <th className="p-3">Người dùng</th>
-                      <th className="p-3">Số tiền</th>
-                      <th className="p-3">Loại</th>
-                      <th className="p-3">Mô tả chi tiết</th>
-                      <th className="p-3">Trạng thái</th>
-                      <th className="p-3">Hành động</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-350">
-                    {transactions.filter(t => t.status === "pending" || t.payment_method === "VietQR").map((t) => (
-                      <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition">
-                        <td className="p-3 font-bold text-slate-900 dark:text-white">#{t.id}</td>
-                        <td className="p-3">Thành viên #{t.user_id}</td>
-                        <td className="p-3 text-red-500 font-bold">{formatCurrency(t.amount)}</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${t.transaction_type === "deposit" ? "bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400" : "bg-blue-100 text-blue-700 dark:bg-blue-955/30 dark:text-blue-400"}`}>
-                            {t.transaction_type === "deposit" ? "Nạp tiền" : "Thanh toán"}
-                          </span>
-                        </td>
-                        <td className="p-3 max-w-xs truncate">{t.description}</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${t.status === "pending" ? "bg-amber-100 text-amber-700" : t.status === "completed" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                            {t.status === "pending" ? "Chờ duyệt" : t.status === "completed" ? "Thành công" : "Thất bại"}
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          {t.status === "pending" ? (
-                            <button
-                              onClick={() => handleApproveTransaction(t.id)}
-                              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg text-[10px]"
-                            >
-                              Duyệt VietQR
-                            </button>
-                          ) : (
-                            <span className="text-slate-400 font-bold text-[10px]">-</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    {transactions.filter(t => t.status === "pending" || t.payment_method === "VietQR").length === 0 && (
-                      <tr>
-                        <td colSpan="7" className="p-6 text-center text-slate-400 font-semibold">
-                          Không có giao dịch VietQR nào cần xử lý.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Waiting for Payout</span>
+                <span className="text-lg font-black text-orange-500 mt-2">{formatCurrency(paymentStats.waiting_for_payout)}</span>
+              </div>
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Released Payments</span>
+                <span className="text-lg font-black text-green-500 mt-2">{paymentStats.released_payments_count} GD</span>
+              </div>
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Success Payments</span>
+                <span className="text-lg font-black text-blue-500 mt-2">{paymentStats.success_payments_count} GD</span>
+              </div>
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Failed Payments</span>
+                <span className="text-lg font-black text-red-500 mt-2">{paymentStats.failed_payments_count} GD</span>
+              </div>
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Transactions</span>
+                <span className="text-lg font-black text-slate-700 dark:text-slate-300 mt-2">{paymentStats.total_transactions} GD</span>
               </div>
             </div>
 
-            {/* Escrow Release to Seller */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">
-                  📦 Đối soát giải ngân ký quỹ cho Người bán (Seller)
-                </h3>
-                <span className="text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded font-bold uppercase">
-                  {products.filter(p => p.status === "completed" && p.bid_count > 0).length} Đơn chờ giải ngân
-                </span>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 font-bold uppercase">
-                      <th className="p-3">Mã sản phẩm</th>
-                      <th className="p-3">Tên sản phẩm</th>
-                      <th className="p-3">Tiền ký quỹ thắng thầu</th>
-                      <th className="p-3">Người bán</th>
-                      <th className="p-3">Giao nhận</th>
-                      <th className="p-3">Hành động</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-350">
-                    {products.filter(p => ["completed", "delivered"].includes(p.status) && p.bid_count > 0).map((p) => (
-                      <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition">
-                        <td className="p-3 font-bold text-slate-900 dark:text-white">#{p.id}</td>
-                        <td className="p-3 font-bold text-slate-900 dark:text-white">{p.title}</td>
-                        <td className="p-3 text-emerald-600 font-bold">{formatCurrency(p.current_price)}</td>
-                        <td className="p-3">Thành viên #{p.seller_id}</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${p.status === "completed" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
-                            {p.status === "completed" ? "Chờ giải ngân" : "Hoàn tất"}
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          {p.status === "completed" ? (
-                            <button
-                              onClick={() => handleCompleteEscrow(p.id)}
-                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px]"
-                            >
-                              Giải ngân ví Seller
-                            </button>
-                          ) : (
-                            <span className="text-slate-500 font-bold text-[10px]">✅ Đã giải ngân</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    {products.filter(p => ["completed", "delivered"].includes(p.status) && p.bid_count > 0).length === 0 && (
-                      <tr>
-                        <td colSpan="6" className="p-6 text-center text-slate-400 font-semibold">
-                          Không có đơn hàng nào chờ giải ngân ký quỹ.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+            {/* Sub-tabs Selector */}
+            <div className="flex gap-2 border-b border-slate-200 dark:border-slate-800 pb-3 font-bold">
+              <button
+                onClick={() => setEscrowSubTab("vnpay")}
+                className={`px-4 py-2 rounded-xl transition ${escrowSubTab === "vnpay"
+                  ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950 shadow-sm"
+                  : "text-slate-500 hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
+                  }`}
+              >
+                💳 Giao dịch VNPAY (Thanh toán thầu)
+              </button>
+              <button
+                onClick={() => setEscrowSubTab("vietqr")}
+                className={`px-4 py-2 rounded-xl transition ${escrowSubTab === "vietqr"
+                  ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950 shadow-sm"
+                  : "text-slate-500 hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
+                  }`}
+              >
+                🏦 Duyệt giao dịch VietQR ({transactions.filter(t => t.status === "pending").length})
+              </button>
             </div>
+
+            {escrowSubTab === "vnpay" && (
+              <div className="space-y-6">
+                {/* Advanced Search & Filtering */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Tìm kiếm</label>
+                      <input
+                        type="text"
+                        placeholder="Tìm sản phẩm, Buyer, Seller..."
+                        value={paymentFilters.search}
+                        onChange={(e) => setPaymentFilters(prev => ({ ...prev, search: e.target.value }))}
+                        className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Trạng thái</label>
+                      <select
+                        value={paymentFilters.status}
+                        onChange={(e) => setPaymentFilters(prev => ({ ...prev, status: e.target.value }))}
+                        className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 focus:outline-none"
+                      >
+                        <option value="">Tất cả trạng thái</option>
+                        <option value="SUCCESS">Thành công (Paid)</option>
+                        <option value="WaitingForPayout">Chờ giải ngân (Waiting for Payout)</option>
+                        <option value="Released">Đã giải ngân (Released)</option>
+                        <option value="PENDING">Đang chờ (Pending)</option>
+                        <option value="FAILED">Thất bại (Failed)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Từ ngày</label>
+                      <input
+                        type="date"
+                        value={paymentFilters.startDate}
+                        onChange={(e) => setPaymentFilters(prev => ({ ...prev, startDate: e.target.value }))}
+                        className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Đến ngày</label>
+                      <input
+                        type="date"
+                        value={paymentFilters.endDate}
+                        onChange={(e) => setPaymentFilters(prev => ({ ...prev, endDate: e.target.value }))}
+                        className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* VNPAY Payments Table */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+                  <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">
+                      📋 Danh sách giao dịch VNPAY ({filteredPayments.length})
+                    </h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 font-bold uppercase">
+                          <th className="p-3">Mã GD</th>
+                          <th className="p-3">Sản phẩm</th>
+                          <th className="p-3">Số tiền</th>
+                          <th className="p-3">Người mua</th>
+                          <th className="p-3">Người bán</th>
+                          <th className="p-3">Trạng thái</th>
+                          <th className="p-3">Hành động</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-350">
+                        {filteredPayments.map((pay) => (
+                          <tr key={pay.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition">
+                            <td className="p-3 font-bold text-slate-900 dark:text-white">#{pay.id}</td>
+                            <td className="p-3 font-bold text-slate-900 dark:text-white max-w-xs truncate">{pay.product.title}</td>
+                            <td className="p-3 text-indigo-650 font-bold">{formatCurrency(pay.amount)}</td>
+                            <td className="p-3">{pay.buyer.username}</td>
+                            <td className="p-3">{pay.seller?.username || "N/A"}</td>
+                            <td className="p-3">
+                              <div className="flex flex-col">
+                                <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase self-start ${
+                                  pay.status === "Released"
+                                    ? "bg-green-100 text-green-700 dark:bg-green-955/30 dark:text-green-400"
+                                    : pay.status === "WaitingForPayout"
+                                    ? "bg-amber-100 text-amber-700 dark:bg-amber-955/30 dark:text-amber-400"
+                                    : pay.status === "SUCCESS"
+                                    ? "bg-blue-100 text-blue-700 dark:bg-blue-955/30 dark:text-blue-400"
+                                    : pay.status === "FAILED"
+                                    ? "bg-red-100 text-red-700 dark:bg-red-955/30 dark:text-red-400"
+                                    : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                                }`}>
+                                  {pay.status === "Released"
+                                    ? "Đã giải ngân"
+                                    : pay.status === "WaitingForPayout"
+                                    ? "Chờ giải ngân"
+                                    : pay.status === "SUCCESS"
+                                    ? "Thành công"
+                                    : pay.status === "FAILED"
+                                    ? "Thất bại"
+                                    : "Đang chờ"}
+                                </span>
+                                {pay.status === "Released" && (
+                                  <>
+                                    {pay.released_by && (
+                                      <span className="text-[9px] text-slate-450 mt-1 font-bold">
+                                        By: {pay.released_by}
+                                      </span>
+                                    )}
+                                    {pay.released_time && (
+                                      <span className="text-[8.5px] text-slate-400 font-medium">
+                                        {formatDate(pay.released_time)}
+                                      </span>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-3 space-x-2 whitespace-nowrap">
+                              <button
+                                onClick={() => handleViewPaymentDetails(pay.id)}
+                                className="px-2.5 py-1 border border-slate-350 dark:border-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-white font-bold rounded-lg text-[10px]"
+                              >
+                                Chi tiết
+                              </button>
+                              {pay.status === "WaitingForPayout" && (
+                                <button
+                                  onClick={() => handleReleasePayment(pay.id)}
+                                  className="px-2.5 py-1 bg-indigo-650 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px]"
+                                >
+                                  Release Payment
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                        {filteredPayments.length === 0 && (
+                          <tr>
+                            <td colSpan="7" className="p-6 text-center text-slate-400 font-semibold">
+                              Không tìm thấy giao dịch VNPAY nào phù hợp bộ lọc.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Revenue Daily Statistics Chart */}
+                {paymentStats.daily_revenue && paymentStats.daily_revenue.length > 0 && (
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">
+                      📈 Biểu đồ thống kê doanh thu giải ngân theo ngày
+                    </h3>
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={paymentStats.daily_revenue} margin={{ top: 10, right: 10, left: 20, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                          <XAxis dataKey="date" stroke="#64748b" fontSize={10} />
+                          <YAxis tickFormatter={(v) => v >= 1000000 ? (v * 0.000001).toLocaleString("vi-VN") + " Tr" : v.toLocaleString("vi-VN")} width={80} stroke="#64748b" fontSize={10} />
+                          <Tooltip formatter={(v) => formatCurrency(v)} />
+                          <Bar dataKey="amount" fill="#6366f1" radius={[8, 8, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {escrowSubTab === "vietqr" && (
+              <div className="space-y-6">
+                {/* VietQR Transactions Approvals */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+                  <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">
+                      💳 Duyệt giao dịch VietQR (Nạp tiền & Thanh toán)
+                    </h3>
+                    <span className="text-[10px] bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 px-2 py-0.5 rounded font-bold uppercase">
+                      {transactions.filter(t => t.status === "pending").length} Giao dịch chờ duyệt
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 font-bold uppercase">
+                          <th className="p-3">Mã GD</th>
+                          <th className="p-3">Người dùng</th>
+                          <th className="p-3">Số tiền</th>
+                          <th className="p-3">Loại</th>
+                          <th className="p-3">Mô tả chi tiết</th>
+                          <th className="p-3">Trạng thái</th>
+                          <th className="p-3">Hành động</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-350">
+                        {transactions.filter(t => t.status === "pending" || t.payment_method === "VietQR").map((t) => (
+                          <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition">
+                            <td className="p-3 font-bold text-slate-900 dark:text-white">#{t.id}</td>
+                            <td className="p-3">Thành viên #{t.user_id}</td>
+                            <td className="p-3 text-red-500 font-bold">{formatCurrency(t.amount)}</td>
+                            <td className="p-3">
+                              <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${t.transaction_type === "deposit" ? "bg-amber-100 text-amber-700 dark:bg-amber-955/30 dark:text-amber-400" : "bg-blue-100 text-blue-700 dark:bg-blue-955/30 dark:text-blue-400"}`}>
+                                {t.transaction_type === "deposit" ? "Nạp tiền" : "Thanh toán"}
+                              </span>
+                            </td>
+                            <td className="p-3 max-w-xs truncate">{t.description}</td>
+                            <td className="p-3">
+                              <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${t.status === "pending" ? "bg-amber-100 text-amber-700" : t.status === "completed" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                                {t.status === "pending" ? "Chờ duyệt" : t.status === "completed" ? "Thành công" : "Thất bại"}
+                              </span>
+                            </td>
+                            <td className="p-3">
+                              {t.status === "pending" ? (
+                                <button
+                                  onClick={() => handleApproveTransaction(t.id)}
+                                  className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg text-[10px]"
+                                >
+                                  Duyệt VietQR
+                                </button>
+                              ) : (
+                                <span className="text-slate-400 font-bold text-[10px]">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                        {transactions.filter(t => t.status === "pending" || t.payment_method === "VietQR").length === 0 && (
+                          <tr>
+                            <td colSpan="7" className="p-6 text-center text-slate-400 font-semibold">
+                              Không có giao dịch VietQR nào cần xử lý.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Legacy Escrow Release to Seller (Just in case they also need manual VietQR release fallback) */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+                  <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">
+                      📦 Đối soát giải ngân ký quỹ cho Người bán (Seller) - Phụ
+                    </h3>
+                    <span className="text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded font-bold uppercase">
+                      {products.filter(p => p.status === "completed" && p.bid_count > 0).length} Đơn chờ giải ngân
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 font-bold uppercase">
+                          <th className="p-3">Mã sản phẩm</th>
+                          <th className="p-3">Tên sản phẩm</th>
+                          <th className="p-3">Tiền ký quỹ thắng thầu</th>
+                          <th className="p-3">Người bán</th>
+                          <th className="p-3">Giao nhận</th>
+                          <th className="p-3">Hành động</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-350">
+                        {products.filter(p => ["completed", "delivered"].includes(p.status) && p.bid_count > 0).map((p) => (
+                          <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition">
+                            <td className="p-3 font-bold text-slate-900 dark:text-white">#{p.id}</td>
+                            <td className="p-3 font-bold text-slate-900 dark:text-white">{p.title}</td>
+                            <td className="p-3 text-emerald-600 font-bold">{formatCurrency(p.current_price)}</td>
+                            <td className="p-3">Thành viên #{p.seller_id}</td>
+                            <td className="p-3">
+                              <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${p.status === "completed" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                                {p.status === "completed" ? "Chờ giải ngân" : "Hoàn tất"}
+                              </span>
+                            </td>
+                            <td className="p-3">
+                              {p.status === "completed" ? (
+                                <button
+                                  onClick={() => handleCompleteEscrow(p.id)}
+                                  className="px-3 py-1.5 bg-indigo-650 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px]"
+                                >
+                                  Giải ngân ví Seller
+                                </button>
+                              ) : (
+                                <span className="text-slate-500 font-bold text-[10px]">✅ Đã giải ngân</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                        {products.filter(p => ["completed", "delivered"].includes(p.status) && p.bid_count > 0).length === 0 && (
+                          <tr>
+                            <td colSpan="6" className="p-6 text-center text-slate-400 font-semibold">
+                              Không có đơn hàng nào chờ giải ngân ký quỹ.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -821,6 +1136,112 @@ const AdminDashboardPage = () => {
                   <span className="text-slate-200">{log.action}</span>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* VNPAY Payment Details Modal */}
+        {showPaymentModal && selectedPayment && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in font-sans">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col">
+              {/* Header */}
+              <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-850 px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                    💳 Chi tiết thanh toán #{selectedPayment.id}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Phương thức thanh toán VNPAY | Tạo lúc: {selectedPayment.created_at}</p>
+                </div>
+                <button
+                  onClick={() => setShowPaymentModal(false)}
+                  className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-850 text-slate-500 dark:text-slate-400 font-bold transition text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 space-y-5 text-xs overflow-y-auto max-h-[70vh] text-slate-700 dark:text-slate-300">
+                {/* Product Info */}
+                <div className="bg-slate-50 dark:bg-slate-850/50 p-4 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2">
+                  <h4 className="font-bold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 pb-1.5 uppercase text-[10px]">
+                    📦 Thông tin đơn hàng
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <p>Sản phẩm: <strong className="text-slate-900 dark:text-white">{selectedPayment.product.title}</strong></p>
+                    <p>Mã sản phẩm: <strong className="text-slate-900 dark:text-white">#{selectedPayment.product.id}</strong></p>
+                    <p>Trạng thái đơn: <strong className="text-slate-900 dark:text-white uppercase text-[10px]">{selectedPayment.product.status}</strong></p>
+                    <p>Số tiền thầu: <strong className="text-red-500 text-sm">{formatCurrency(selectedPayment.amount)}</strong></p>
+                  </div>
+                </div>
+
+                {/* Buyer & Seller Info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-slate-50 dark:bg-slate-850/50 p-4 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2">
+                    <h4 className="font-bold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 pb-1.5 uppercase text-[10px]">
+                      👤 Người mua (Buyer)
+                    </h4>
+                    <p>Username: <strong className="text-slate-900 dark:text-white">{selectedPayment.buyer.username}</strong></p>
+                    <p>Email: <strong className="text-slate-900 dark:text-white">{selectedPayment.buyer.email}</strong></p>
+                    <p>SĐT: <strong className="text-slate-900 dark:text-white">{selectedPayment.buyer.phone || "Chưa cập nhật"}</strong></p>
+                    <p>Địa chỉ: <strong className="text-slate-900 dark:text-white">{selectedPayment.buyer.address || "Chưa cập nhật"}</strong></p>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-850/50 p-4 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2">
+                    <h4 className="font-bold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 pb-1.5 uppercase text-[10px]">
+                      🏪 Người bán (Seller)
+                    </h4>
+                    <p>Username: <strong className="text-slate-900 dark:text-white">{selectedPayment.seller.username}</strong></p>
+                    <p>Email: <strong className="text-slate-900 dark:text-white">{selectedPayment.seller.email}</strong></p>
+                    <p>SĐT: <strong className="text-slate-900 dark:text-white">{selectedPayment.seller.phone || "Chưa cập nhật"}</strong></p>
+                    <p>Địa chỉ: <strong className="text-slate-900 dark:text-white">{selectedPayment.seller.address || "Chưa cập nhật"}</strong></p>
+                  </div>
+                </div>
+
+                {/* VNPAY Gate Metadata */}
+                <div className="bg-slate-50 dark:bg-slate-850/50 p-4 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2">
+                  <h4 className="font-bold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 pb-1.5 uppercase text-[10px]">
+                    🌐 Chi tiết cổng VNPAY
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <p>Mã giao dịch cổng: <strong className="text-slate-900 dark:text-white">{selectedPayment.vnpay_details?.vnp_transaction_no || "N/A"}</strong></p>
+                    <p>Ngân hàng: <strong className="text-slate-900 dark:text-white">{selectedPayment.vnpay_details?.bank_code || "N/A"}</strong></p>
+                    <p>Loại thẻ: <strong className="text-slate-900 dark:text-white">{selectedPayment.vnpay_details?.card_type || "N/A"}</strong></p>
+                    <p>Mã phản hồi: <strong className="text-slate-900 dark:text-white">{selectedPayment.vnpay_details?.response_code || "N/A"}</strong></p>
+                    <p className="col-span-2">Ngày giao dịch VNPAY: <strong className="text-slate-900 dark:text-white">{selectedPayment.vnpay_details?.transaction_date || "N/A"}</strong></p>
+                  </div>
+                </div>
+
+                {/* Release Info */}
+                {selectedPayment.status === "Released" && (
+                  <div className="bg-green-50 dark:bg-green-955/20 p-4 rounded-xl border border-green-200 dark:border-green-900/50 space-y-2">
+                    <h4 className="font-bold text-green-800 dark:text-green-400 border-b border-green-200 dark:border-green-900 pb-1.5 uppercase text-[10px]">
+                      💰 Thông tin giải ngân
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4">
+                       <p>Người giải ngân: <strong className="text-slate-900 dark:text-white">{selectedPayment.released_by}</strong></p>
+                       <p>Thời gian: <strong className="text-slate-900 dark:text-white">{selectedPayment.released_time ? formatDate(selectedPayment.released_time) : "N/A"}</strong></p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-end gap-3 bg-slate-50 dark:bg-slate-850 px-6 py-4 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  onClick={() => setShowPaymentModal(false)}
+                  className="px-4 py-2 border border-slate-350 dark:border-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-white font-bold rounded-xl"
+                >
+                  Đóng
+                </button>
+                {selectedPayment.status === "WaitingForPayout" && (
+                  <button
+                    onClick={() => handleReleasePayment(selectedPayment.id)}
+                    className="px-4 py-2 bg-indigo-650 hover:bg-indigo-700 text-white font-black rounded-xl"
+                  >
+                    Release Payment
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}

@@ -471,6 +471,310 @@ def complete_escrow(
     )
     db.add(seller_notification)
     
-    db.commit()
     create_log(db, current_admin.id, "admin_action", f"Completed escrow for product {product_id}, released {highest_bid.bid_amount} to seller {seller_id}")
-    return {"status": "success", "message": "Giải ngân tiền thầu cho người bán thành công!"}
+    return {"status": "success", "message": "Giải ngân tiền thầu cho người bán thành công!"}
+
+
+@router.get("/payments")
+def get_all_payments(
+    current_admin: models.User = Depends(get_current_admin),
+    db: Session = Depends(database.get_db),
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    buyer_id: Optional[int] = None,
+    seller_id: Optional[int] = None
+):
+    from sqlalchemy.orm import aliased
+    Buyer = aliased(models.User, name="buyer")
+    Seller = aliased(models.User, name="seller")
+    
+    query = db.query(
+        models.Payment,
+        models.Product,
+        Buyer,
+        Seller
+    ).join(
+        models.Product, models.Payment.auction_id == models.Product.id
+    ).join(
+        Buyer, models.Payment.user_id == Buyer.id
+    ).outerjoin(
+        Seller, models.Product.seller_id == Seller.id
+    )
+    
+    if status:
+        query = query.filter(models.Payment.status == status)
+        
+    if search:
+        query = query.filter(
+            or_(
+                models.Product.title.ilike(f"%{search}%"),
+                Buyer.username.ilike(f"%{search}%"),
+                Seller.username.ilike(f"%{search}%")
+            )
+        )
+        
+    if buyer_id:
+        query = query.filter(models.Payment.user_id == buyer_id)
+        
+    if seller_id:
+        query = query.filter(models.Product.seller_id == seller_id)
+        
+    if start_date:
+        try:
+            sd = datetime.strptime(start_date, "%Y-%m-%d")
+            query = query.filter(models.Payment.created_at >= sd)
+        except ValueError:
+            pass
+            
+    if end_date:
+        try:
+            ed = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)
+            query = query.filter(models.Payment.created_at < ed)
+        except ValueError:
+            pass
+            
+    payments = query.order_by(models.Payment.created_at.desc()).all()
+    
+    result = []
+    for pay, prod, buy, sell in payments:
+        released_by_user = None
+        if pay.released_by:
+            released_by_user = db.query(models.User).filter(models.User.id == pay.released_by).first()
+            
+        result.append({
+            "id": pay.id,
+            "amount": pay.amount,
+            "status": pay.status,
+            "payment_method": pay.payment_method,
+            "transaction_id": pay.transaction_id,
+            "created_at": pay.created_at.isoformat() if pay.created_at else None,
+            "released_by": (released_by_user.full_name or released_by_user.username) if released_by_user else None,
+            "released_time": pay.released_time.isoformat() if pay.released_time else None,
+            "buyer": {
+                "id": buy.id,
+                "username": buy.username,
+                "email": buy.email,
+                "full_name": getattr(buy, 'full_name', None),
+                "phone": getattr(buy, 'phone', None),
+                "address": getattr(buy, 'address', None),
+            },
+            "seller": {
+                "id": sell.id if sell else None,
+                "username": sell.username if sell else "N/A",
+                "email": sell.email if sell else "N/A",
+                "full_name": getattr(sell, 'full_name', None) if sell else None,
+                "phone": getattr(sell, 'phone', None) if sell else None,
+                "address": getattr(sell, 'address', None) if sell else None,
+            },
+            "product": {
+                "id": prod.id,
+                "title": prod.title,
+                "status": prod.status
+            }
+        })
+    return result
+
+
+@router.get("/payments/stats")
+def get_payment_stats(
+    current_admin: models.User = Depends(get_current_admin),
+    db: Session = Depends(database.get_db)
+):
+    total_revenue = db.query(func.sum(models.Payment.amount)).filter(
+        models.Payment.status == "Released"
+    ).scalar() or 0
+    
+    waiting_for_payout = db.query(func.sum(models.Payment.amount)).filter(
+        models.Payment.status == "WaitingForPayout"
+    ).scalar() or 0
+    
+    released_count = db.query(models.Payment).filter(models.Payment.status == "Released").count()
+    success_count = db.query(models.Payment).filter(models.Payment.status == "SUCCESS").count()
+    failed_count = db.query(models.Payment).filter(models.Payment.status == "FAILED").count()
+    pending_count = db.query(models.Payment).filter(models.Payment.status == "PENDING").count()
+    waiting_count = db.query(models.Payment).filter(models.Payment.status == "WaitingForPayout").count()
+    
+    total_transactions = db.query(models.Payment).count()
+    
+    daily_revenue = []
+    if db.bind.dialect.name == "sqlite":
+        rows = db.query(
+            func.strftime("%Y-%m-%d", models.Payment.released_time),
+            func.sum(models.Payment.amount)
+        ).filter(
+            models.Payment.status == "Released",
+            models.Payment.released_time != None
+        ).group_by(
+            func.strftime("%Y-%m-%d", models.Payment.released_time)
+        ).order_by(
+            func.strftime("%Y-%m-%d", models.Payment.released_time)
+        ).all()
+        for r_date, r_sum in rows:
+            daily_revenue.append({"date": r_date, "amount": r_sum})
+    else:
+        rows = db.query(
+            func.cast(models.Payment.released_time, models.Date),
+            func.sum(models.Payment.amount)
+        ).filter(
+            models.Payment.status == "Released",
+            models.Payment.released_time != None
+        ).group_by(
+            func.cast(models.Payment.released_time, models.Date)
+        ).order_by(
+            func.cast(models.Payment.released_time, models.Date)
+        ).all()
+        for r_date, r_sum in rows:
+            daily_revenue.append({"date": r_date.isoformat(), "amount": r_sum})
+            
+    return {
+        "total_revenue": total_revenue,
+        "waiting_for_payout": waiting_for_payout,
+        "released_payments_count": released_count,
+        "success_payments_count": success_count,
+        "failed_payments_count": failed_count,
+        "pending_payments_count": pending_count,
+        "waiting_payments_count": waiting_count,
+        "total_transactions": total_transactions,
+        "daily_revenue": daily_revenue
+    }
+
+
+@router.get("/payments/{payment_id}")
+def get_payment_detail(
+    payment_id: int,
+    current_admin: models.User = Depends(get_current_admin),
+    db: Session = Depends(database.get_db)
+):
+    payment = db.query(models.Payment).filter(models.Payment.id == payment_id).first()
+    if not payment:
+        raise HTTPException(status_code=404, detail="Không tìm thấy thông tin thanh toán!")
+        
+    prod = db.query(models.Product).filter(models.Product.id == payment.auction_id).first()
+    buy = db.query(models.User).filter(models.User.id == payment.user_id).first()
+    sell = db.query(models.User).filter(models.User.id == prod.seller_id).first() if prod else None
+    vnp_tx = db.query(models.VNPTransaction).filter(models.VNPTransaction.payment_id == payment.id).first()
+    
+    released_by_user = None
+    if payment.released_by:
+        released_by_user = db.query(models.User).filter(models.User.id == payment.released_by).first()
+        
+    return {
+        "id": payment.id,
+        "amount": payment.amount,
+        "status": payment.status,
+        "payment_method": payment.payment_method,
+        "transaction_id": payment.transaction_id,
+        "created_at": payment.created_at.isoformat() if payment.created_at else None,
+        "released_by": (released_by_user.full_name or released_by_user.username) if released_by_user else None,
+        "released_time": payment.released_time.isoformat() if payment.released_time else None,
+        "buyer": {
+            "id": buy.id if buy else None,
+            "username": buy.username if buy else "N/A",
+            "email": buy.email if buy else "N/A",
+            "full_name": getattr(buy, 'full_name', None) if buy else None,
+            "phone": getattr(buy, 'phone', None) if buy else None,
+            "address": getattr(buy, 'address', None) if buy else None,
+        },
+        "seller": {
+            "id": sell.id if sell else None,
+            "username": sell.username if sell else "N/A",
+            "email": sell.email if sell else "N/A",
+            "full_name": getattr(sell, 'full_name', None) if sell else None,
+            "phone": getattr(sell, 'phone', None) if sell else None,
+            "address": getattr(sell, 'address', None) if sell else None,
+        },
+        "product": {
+            "id": prod.id if prod else None,
+            "title": prod.title if prod else "N/A",
+            "status": prod.status if prod else "N/A"
+        },
+        "vnpay_details": {
+            "vnp_transaction_no": vnp_tx.vnp_transaction_no if vnp_tx else None,
+            "bank_code": vnp_tx.bank_code if vnp_tx else None,
+            "card_type": vnp_tx.card_type if vnp_tx else None,
+            "response_code": vnp_tx.response_code if vnp_tx else None,
+            "transaction_date": vnp_tx.transaction_date if vnp_tx else None,
+        }
+    }
+
+
+@router.post("/payments/{payment_id}/release")
+def release_payment(
+    payment_id: int,
+    current_admin: models.User = Depends(get_current_admin),
+    db: Session = Depends(database.get_db)
+):
+    payment = db.query(models.Payment).filter(models.Payment.id == payment_id).first()
+    if not payment:
+        raise HTTPException(status_code=404, detail="Không tìm thấy giao dịch thanh toán!")
+        
+    if payment.status == "Released":
+        raise HTTPException(status_code=400, detail="Thanh toán này đã được giải ngân rồi!")
+        
+    if payment.status != "WaitingForPayout":
+        raise HTTPException(status_code=400, detail="Chỉ cho phép giải ngân khi giao dịch ở trạng thái WaitingForPayout!")
+        
+    product = db.query(models.Product).filter(models.Product.id == payment.auction_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Không tìm thấy sản phẩm liên quan!")
+        
+    seller_id = product.seller_id
+    if not seller_id:
+        raise HTTPException(status_code=400, detail="Sản phẩm không có thông tin người bán!")
+        
+    seller_wallet = db.query(models.Wallet).filter(models.Wallet.user_id == seller_id).first()
+    if not seller_wallet:
+        seller_wallet = models.Wallet(user_id=seller_id, balance=0)
+        db.add(seller_wallet)
+        db.commit()
+        db.refresh(seller_wallet)
+        
+    seller_wallet.balance += payment.amount
+    seller_wallet.updated_at = datetime.utcnow()
+    
+    seller_tx = models.Transaction(
+        user_id=seller_id,
+        wallet_id=seller_wallet.id,
+        amount=payment.amount,
+        transaction_type="Auction Payout",
+        payment_method="Escrow Release",
+        description=f"Tiền từ phiên đấu giá #{product.id} đã được Admin giải ngân.",
+        status="completed",
+        product_id=product.id
+    )
+    db.add(seller_tx)
+    
+    payment.status = "Released"
+    payment.released_by = current_admin.id
+    payment.released_time = datetime.utcnow()
+    payment.updated_at = datetime.utcnow()
+    
+    product.status = "completed"
+    
+    seller_notification = models.Notification(
+        user_id=seller_id,
+        title="💰 Tiền hàng đã được giải ngân!",
+        message="Khoản thanh toán của phiên đấu giá đã được Admin giải ngân thành công. Số tiền đã được cộng vào Wallet của bạn.",
+        notification_type="system",
+        product_id=product.id,
+        is_read=False
+    )
+    db.add(seller_notification)
+    
+    buyer_notification = models.Notification(
+        user_id=payment.user_id,
+        title="📦 Đơn hàng đã hoàn tất!",
+        message="Đơn hàng của bạn đã hoàn tất. Khoản thanh toán đã được hệ thống giải ngân cho người bán. Cảm ơn bạn đã sử dụng hệ thống đấu giá.",
+        notification_type="system",
+        product_id=product.id,
+        is_read=False
+    )
+    db.add(buyer_notification)
+    
+    db.commit()
+    
+    create_log(db, current_admin.id, "admin_action", f"Released payment {payment_id} for product {product.id} to seller {seller_id}")
+    
+    return {"status": "success", "message": "Giải ngân tiền hàng cho người bán thành công!"}

@@ -17,9 +17,9 @@ export function useSellerData() {
   const [loading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState("");
 
-  const fetchSellerData = useCallback(async () => {
+  const fetchSellerData = useCallback(async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       setErrorText("");
 
       const token = localStorage.getItem("token");
@@ -57,13 +57,17 @@ export function useSellerData() {
       console.error("Lỗi khi tải dữ liệu:", error.response?.data || error.message);
       setErrorText("Không thể kết nối đến máy chủ. Vui lòng thử lại sau.");
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, [user]);
 
   useEffect(() => {
     if (user) {
       fetchSellerData();
+      const interval = setInterval(() => {
+        fetchSellerData(false);
+      }, 5000);
+      return () => clearInterval(interval);
     }
   }, [user, fetchSellerData]);
 

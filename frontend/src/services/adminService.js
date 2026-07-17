@@ -62,5 +62,17 @@ export const adminService = {
   },
   async completeEscrow(productId) {
     return api.post(`/admin/products/${productId}/complete-escrow`);
+  },
+  async getAllPayments(filters = {}) {
+    return api.get("/admin/payments", filters);
+  },
+  async getPaymentStats() {
+    return api.get("/admin/payments/stats");
+  },
+  async getPaymentDetails(paymentId) {
+    return api.get(`/admin/payments/${paymentId}`);
+  },
+  async releasePayment(paymentId) {
+    return api.post(`/admin/payments/${paymentId}/release`);
   }
 };

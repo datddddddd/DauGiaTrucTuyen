@@ -228,12 +228,15 @@ class Payment(Base):
     amount = Column(Integer, nullable=False)
     status = Column(String, default="PENDING", index=True)  # PENDING, SUCCESS, FAILED
     payment_method = Column(String, default="VNPAY")
+    released_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    released_time = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
     # Mối quan hệ
-    user = relationship("User")
+    user = relationship("User", foreign_keys=[user_id])
     product = relationship("Product")
+    payout_admin = relationship("User", foreign_keys=[released_by])
     vnpay_transaction = relationship("VNPTransaction", uselist=False, back_populates="payment", cascade="all, delete-orphan")
 
 

@@ -581,32 +581,48 @@ def update_product_order_status(
     if not new_status:
         raise HTTPException(status_code=400, detail="Trạng thái không hợp lệ!")
         
-    if new_status == "completed":
+    if new_status == "preparing":
+        if current_user.role != "admin" and product.seller_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền chuẩn bị hàng cho đơn hàng này!")
+            
+    elif new_status == "delivered":
+        if product.status not in ["shipping", "Đang vận chuyển"]:
+            raise HTTPException(status_code=400, detail="Đơn hàng phải ở trạng thái đang giao mới có thể xác nhận đã nhận hàng!")
+            
         highest_bid = db.query(models.Bid).filter(
             models.Bid.product_id == product_id
         ).order_by(models.Bid.bid_amount.desc()).first()
         if not highest_bid or highest_bid.user_id != current_user.id:
-            if current_user.role != "admin" and product.seller_id != current_user.id:
-                raise HTTPException(status_code=403, detail="Bạn không có quyền xác nhận hoàn thành đơn hàng này!")
+            if current_user.role != "admin":
+                raise HTTPException(status_code=403, detail="Bạn không có quyền xác nhận nhận hàng cho đơn hàng này!")
         
+        # Cập nhật trạng thái Payment của sản phẩm này thành "WaitingForPayout"
+        payment = db.query(models.Payment).filter(
+            models.Payment.auction_id == product_id,
+            models.Payment.status == "SUCCESS"
+        ).first()
+        if payment:
+            payment.status = "WaitingForPayout"
+            payment.updated_at = datetime.utcnow()
+            
         # Thêm thông báo cho người bán và admin
         if product.seller_id:
             seller_notification = models.Notification(
                 user_id=product.seller_id,
                 title="📦 Khách hàng đã nhận được hàng!",
-                message=f"Đơn hàng '{product.title}' đã giao nhận thành công. Tiền ký quỹ đang chờ Admin đối soát giải ngân.",
+                message="Người mua đã xác nhận nhận hàng. Giao dịch đang chờ Admin giải ngân.",
                 notification_type="system",
                 product_id=product.id,
                 is_read=False
             )
             db.add(seller_notification)
             
-        admin_user = db.query(models.User).filter(models.User.role == "admin").first()
-        if admin_user:
+        admin_users = db.query(models.User).filter(models.User.role == "admin").all()
+        for admin_user in admin_users:
             admin_notification = models.Notification(
                 user_id=admin_user.id,
-                title="🔔 Đơn hàng chờ hoàn tất",
-                message=f"Người mua đã xác nhận nhận sản phẩm '{product.title}'. Vui lòng đối soát và hoàn tất giao dịch.",
+                title="🔔 Đơn hàng chờ giải ngân",
+                message="Có giao dịch mới đang chờ giải ngân.",
                 notification_type="system",
                 product_id=product.id,
                 is_read=False

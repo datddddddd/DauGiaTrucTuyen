@@ -7,6 +7,7 @@ const adminNav = [
   { to: ROUTES.ADMIN.DASHBOARD, label: "📊 Dashboard" },
   { to: ROUTES.ADMIN.BANNERS, label: "🖼️ Banner" },
   { to: ROUTES.ADMIN.CATEGORIES, label: "📁 Danh mục" },
+  { to: ROUTES.USER.ACCOUNT.PROFILE, label: "👤 Hồ sơ cá nhân" },
 ];
 
 const AdminLayout = () => {
@@ -94,7 +95,14 @@ const AdminLayout = () => {
             ))}
           </div>
           <p className="text-sm hidden md:block" style={{ color: "var(--text)" }}>
-            Quản trị viên: <strong style={{ color: "var(--amber-500)" }} className="text-amber-500 dark:text-amber-400">{user?.username}</strong>
+            Quản trị viên:{" "}
+            <Link
+              to={ROUTES.USER.ACCOUNT.PROFILE}
+              style={{ color: "var(--amber-500)" }}
+              className="text-amber-500 dark:text-amber-400 font-bold hover:underline"
+            >
+              {user?.username}
+            </Link>
           </p>
         </header>
 

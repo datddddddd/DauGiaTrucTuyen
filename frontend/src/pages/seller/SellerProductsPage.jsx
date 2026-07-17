@@ -300,7 +300,7 @@ const SellerProductsPage = () => {
     );
   }
 
-  const endedProducts = products.filter((p) => ["ended", "wait_confirm", "confirmed", "shipping", "completed", "delivered"].includes(p.status) && p.bid_count > 0);
+  const endedProducts = products.filter((p) => ["ended", "wait_confirm", "confirmed", "preparing", "shipping", "completed", "delivered"].includes(p.status) && p.bid_count > 0);
 
   return (
     <div className="p-4 md:p-6 text-slate-100 bg-slate-950 min-h-screen font-sans animate-fade-in space-y-8">
@@ -470,9 +470,13 @@ const SellerProductsPage = () => {
                               : p.status === "wait_confirm"
                               ? "rgba(59,130,246,0.1)"
                               : p.status === "confirmed"
+                              ? "rgba(20,184,166,0.1)"
+                              : p.status === "preparing"
                               ? "rgba(16,185,129,0.1)"
                               : p.status === "shipping"
                               ? "rgba(99,102,241,0.1)"
+                              : p.status === "delivered"
+                              ? "rgba(249,115,22,0.1)"
                               : p.status === "completed"
                               ? "rgba(139,92,246,0.1)"
                               : "rgba(100,116,139,0.1)",
@@ -482,9 +486,13 @@ const SellerProductsPage = () => {
                               : p.status === "wait_confirm"
                               ? "#3b82f6"
                               : p.status === "confirmed"
+                              ? "#14b8a6"
+                              : p.status === "preparing"
                               ? "#10b981"
                               : p.status === "shipping"
                               ? "#6366f1"
+                              : p.status === "delivered"
+                              ? "#f97316"
                               : p.status === "completed"
                               ? "#8b5cf6"
                               : "#64748b",
@@ -495,11 +503,13 @@ const SellerProductsPage = () => {
                           : p.status === "wait_confirm"
                           ? "Chờ duyệt VietQR"
                           : p.status === "confirmed"
-                          ? "Đang soạn hàng"
+                          ? "Đã thanh toán (Chờ chuẩn bị)"
+                          : p.status === "preparing"
+                          ? "Đang chuẩn bị hàng"
                           : p.status === "shipping"
                           ? "Đang giao"
-                          : p.status === "completed"
-                          ? "Khách đã nhận"
+                          : p.status === "delivered"
+                          ? "Đợi giải ngân"
                           : "Đơn hoàn tất"}
                       </span>
                     </div>
@@ -529,6 +539,14 @@ const SellerProductsPage = () => {
                     )}
                     {p.status === "confirmed" && (
                       <button
+                        onClick={() => handleUpdateStatus(p.id, "preparing")}
+                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10px]"
+                      >
+                        Chuẩn bị hàng
+                      </button>
+                    )}
+                    {p.status === "preparing" && (
+                      <button
                         onClick={() => handleShipConfirm(p.id)}
                         className="px-3.5 py-1.5 bg-indigo-650 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px]"
                       >
@@ -538,11 +556,11 @@ const SellerProductsPage = () => {
                     {p.status === "shipping" && (
                       <span className="text-indigo-400 font-bold text-[10px]">🚚 Đang giao (Mã: {p.shipping_code || "Chưa có"})</span>
                     )}
-                    {p.status === "completed" && (
-                      <span className="text-purple-400 font-bold text-[10px]">📦 Đợi Admin đối soát giải ngân ký quỹ</span>
-                    )}
                     {p.status === "delivered" && (
-                      <span className="text-emerald-400 font-bold text-[10px]">✅ Đã giải ngân (Hoàn tất giao dịch)</span>
+                      <span className="text-orange-400 font-bold text-[10px]">⏳ Đợi Admin đối soát giải ngân ký quỹ</span>
+                    )}
+                    {p.status === "completed" && (
+                      <span className="text-purple-400 font-bold text-[10px]">✅ Đã giải ngân (Hoàn tất giao dịch)</span>
                     )}
                   </div>
                 </div>

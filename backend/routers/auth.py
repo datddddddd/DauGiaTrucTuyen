@@ -98,7 +98,9 @@ async def register(user_data: UserRegister, db: Session = Depends(database.get_d
 # Đảm bảo bạn có import Request từ fastapi ở đầu file nếu dùng: from fastapi import Request
 @router.post("/login")
 def login(user_data: UserLogin, db: Session = Depends(database.get_db)): # Bỏ tham số request=None gây lỗi mapping
-    user = db.query(models.User).filter(models.User.username == user_data.username).first()
+    user = db.query(models.User).filter(
+        (models.User.username == user_data.username) | (models.User.email == user_data.username)
+    ).first()
     if not user or not bcrypt.checkpw(user_data.password.encode('utf-8'), user.hashed_password.encode('utf-8')):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tài khoản hoặc mật khẩu không chính xác")
     if getattr(user, 'is_blocked', False):

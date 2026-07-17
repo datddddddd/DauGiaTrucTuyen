@@ -205,6 +205,7 @@ def get_transactions(
             "payment_method": t.payment_method,
             "description": t.description,
             "status": t.status,
+            "product_id": t.product_id,
             "created_at": t.created_at.isoformat() if t.created_at else None
         }
         for t in transactions

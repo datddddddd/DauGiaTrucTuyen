@@ -6,6 +6,7 @@ import { isActivePath } from "../utils/navigation";
 const sellerNav = [
   { to: ROUTES.SELLER.DASHBOARD, label: "📊 Tổng quan", icon: "📊" },
   { to: ROUTES.SELLER.PRODUCTS, label: "📦 Sản phẩm", icon: "📦" },
+  { to: ROUTES.USER.ACCOUNT.PROFILE, label: "👤 Hồ sơ cá nhân", icon: "👤" },
 ];
 
 const SellerLayout = () => {
@@ -82,7 +83,13 @@ const SellerLayout = () => {
             ))}
           </div>
           <p className="text-sm text-slate-450 hidden md:block">
-            Nhân viên kinh doanh: <span className="text-white font-bold">{user?.username}</span>
+            Nhân viên kinh doanh:{" "}
+            <Link
+              to={ROUTES.USER.ACCOUNT.PROFILE}
+              className="text-white font-bold hover:text-indigo-450 transition"
+            >
+              {user?.username}
+            </Link>
           </p>
           <div className="flex items-center gap-2">
             <Link

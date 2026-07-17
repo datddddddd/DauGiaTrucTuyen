@@ -151,12 +151,20 @@ const UserDashboardPage = () => {
   useEffect(() => {
     if (user) {
       fetchUserData();
+      const interval = setInterval(() => {
+        fetchUserData(false);
+      }, 5000);
+      return () => clearInterval(interval);
     }
   }, [user]);
 
-  const fetchUserData = async () => {
+  const fetchWalletData = async () => {
+    // Left for wallet references, if any, but let's make sure we keep signature
+  };
+
+  const fetchUserData = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const [watchlistData, notificationsData, bidsData, wonProductsData] = await Promise.all([
         watchlistService.getWatchlist().catch(() => []),
         notificationService.getNotifications().catch(() => []),
@@ -286,8 +294,8 @@ const UserDashboardPage = () => {
   // 2.9 Delivery Confirmation
   const confirmDeliveryReceived = async (orderId) => {
     try {
-      await productService.updateProductStatus(orderId, "completed");
-      triggerToast("📦 Xác nhận đã nhận hàng & Hoàn tất giao dịch!");
+      await productService.updateProductStatus(orderId, "delivered");
+      triggerToast("📦 Xác nhận đã nhận hàng thành công! Đang chờ giải ngân.");
       fetchUserData();
     } catch (error) {
       triggerToast("Thao tác thất bại: " + (error.response?.data?.detail || error.message), "error");
@@ -510,10 +518,10 @@ const UserDashboardPage = () => {
               <h3 className="text-xs font-black text-slate-400 mb-4 uppercase tracking-wider">Chi tiêu so với tiết kiệm</h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={spendingData}>
+                  <BarChart data={spendingData} margin={{ top: 10, right: 10, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="name" />
-                    <YAxis />
+                    <YAxis tickFormatter={(v) => v >= 1000000 ? (v * 0.000001).toLocaleString("vi-VN") + " Tr" : v.toLocaleString("vi-VN")} width={80} />
                     <Tooltip formatter={(v) => formatCurrency(v)} />
                     <Bar dataKey="value" fill="#6366f1" radius={[8, 8, 0, 0]} />
                   </BarChart>
@@ -633,7 +641,7 @@ const UserDashboardPage = () => {
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">📦 Thanh toán đơn hàng & Theo dõi giao nhận</h3>
 
-            {orders.some(o => ["confirmed", "shipping", "completed", "delivered"].includes(o.status)) && (!user?.phone || !user?.address) && (
+            {orders.some(o => ["confirmed", "preparing", "shipping", "completed", "delivered"].includes(o.status)) && (!user?.phone || !user?.address) && (
               <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs font-semibold animate-pulse">
                 <div className="space-y-1">
                   <p className="text-red-800 dark:text-red-400 font-black uppercase tracking-wider">🚨 THIẾU THÔNG TIN GIAO HÀNG (GIỐNG SHOPEE)</p>
@@ -660,13 +668,14 @@ const UserDashboardPage = () => {
                 const orderStatusMap = {
                   ended: { text: "Chờ thanh toán", bg: "bg-amber-100 dark:bg-amber-955/20 text-amber-600 dark:text-amber-400" },
                   wait_confirm: { text: "Chờ Admin duyệt VietQR", bg: "bg-blue-100 dark:bg-blue-955/20 text-blue-600 dark:text-blue-400" },
-                  confirmed: { text: "Đang soạn hàng", bg: "bg-emerald-100 dark:bg-emerald-955/20 text-emerald-600 dark:text-emerald-400" },
-                  shipping: { text: "Đang vận chuyển", bg: "bg-indigo-100 dark:bg-indigo-955/20 text-indigo-600 dark:text-indigo-400" },
-                  completed: { text: "Khách đã nhận", bg: "bg-purple-100 dark:bg-purple-955/20 text-purple-600 dark:text-purple-400" },
-                  delivered: { text: "Hoàn tất giao dịch", bg: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" },
+                  confirmed: { text: "Đã thanh toán", bg: "bg-teal-100 dark:bg-teal-955/20 text-teal-600 dark:text-teal-400" },
+                  preparing: { text: "Đang chuẩn bị hàng", bg: "bg-emerald-100 dark:bg-emerald-955/20 text-emerald-600 dark:text-emerald-400" },
+                  shipping: { text: "Đang giao hàng", bg: "bg-indigo-100 dark:bg-indigo-955/20 text-indigo-600 dark:text-indigo-450" },
+                  delivered: { text: "Đã giao hàng / Chờ giải ngân", bg: "bg-orange-100 dark:bg-orange-955/20 text-orange-600 dark:text-orange-400" },
+                  completed: { text: "Giao dịch hoàn tất", bg: "bg-green-100 dark:bg-green-955/20 text-green-600 dark:text-green-400" },
                   "Đợi thanh toán": { text: "Chờ thanh toán", bg: "bg-amber-100 dark:bg-amber-955/20 text-amber-600 dark:text-amber-400" },
-                  "Đang vận chuyển": { text: "Đang vận chuyển", bg: "bg-indigo-100 dark:bg-indigo-955/20 text-indigo-600 dark:text-indigo-400" },
-                  "Đã giao hàng": { text: "Đã giao hàng", bg: "bg-purple-100 dark:bg-purple-955/20 text-purple-600 dark:text-purple-400" },
+                  "Đang vận chuyển": { text: "Đang giao hàng", bg: "bg-indigo-100 dark:bg-indigo-955/20 text-indigo-600 dark:text-indigo-450" },
+                  "Đã giao hàng": { text: "Đã giao hàng / Chờ giải ngân", bg: "bg-orange-100 dark:bg-orange-955/20 text-orange-600 dark:text-orange-400" },
                 };
 
                 return orders.map((o) => {
@@ -718,6 +727,17 @@ const UserDashboardPage = () => {
 
                         {o.status === "confirmed" && (
                           <div className="flex flex-col items-end gap-1.5">
+                            <span className="text-emerald-500 font-bold text-[10px]">📦 Đã thanh toán! Đang chờ Người bán chuẩn bị hàng...</span>
+                            {(!user?.phone || !user?.address) && (
+                              <span className="text-red-500 font-bold text-[9px] bg-red-50 dark:bg-red-950/20 px-2 py-0.5 rounded">
+                                ⚠️ Vui lòng cập nhật địa chỉ để giao hàng
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {o.status === "preparing" && (
+                          <div className="flex flex-col items-end gap-1.5">
                             <span className="text-emerald-500 font-bold text-[10px]">📦 Người bán đang soạn hàng...</span>
                             {(!user?.phone || !user?.address) && (
                               <span className="text-red-500 font-bold text-[9px] bg-red-50 dark:bg-red-950/20 px-2 py-0.5 rounded">
@@ -729,7 +749,7 @@ const UserDashboardPage = () => {
 
                         {(o.status === "shipping" || o.status === "Đang vận chuyển") && (
                           <div className="flex flex-col items-end gap-2">
-                            <span className="text-indigo-500 font-bold text-[10px] mb-1">🚚 Đang giao (Mã vận đơn: {o.shipping_code || "Chưa cập nhật"})</span>
+                            <span className="text-indigo-500 font-bold text-[10px] mb-1">🚚 Đang vận chuyển (Mã vận đơn: {o.shipping_code || "Chưa cập nhật"})</span>
                             <button
                               onClick={() => confirmDeliveryReceived(o.id)}
                               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10px]"
@@ -739,24 +759,15 @@ const UserDashboardPage = () => {
                           </div>
                         )}
 
-                        {(o.status === "completed" || o.status === "Đã giao hàng") && (
+                        {(o.status === "delivered" || o.status === "Đã giao hàng") && (
                           <div className="flex gap-2 items-center">
-                            <span className="text-purple-500 font-bold text-[10px] mr-2">📦 Đợi đối soát giải ngân ví</span>
-                            <button
-                              onClick={() => {
-                                setReviewProduct(o);
-                                setShowReviewModal(true);
-                              }}
-                              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px]"
-                            >
-                              Đánh giá người bán ⭐
-                            </button>
+                            <span className="text-orange-500 font-bold text-[10px] mr-2">⏳ Đã giao hàng / Chờ giải ngân</span>
                           </div>
                         )}
 
-                        {o.status === "delivered" && (
+                        {o.status === "completed" && (
                           <div className="flex gap-2 items-center">
-                            <span className="text-slate-500 font-bold text-[10px] mr-2">✅ Giao dịch hoàn tất</span>
+                            <span className="text-green-500 font-bold text-[10px] mr-2">✅ Giao dịch hoàn tất</span>
                             <button
                               onClick={() => {
                                 setReviewProduct(o);

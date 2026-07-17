@@ -89,28 +89,42 @@ class EmailService:
     
     def send_email(self, to_email: str, subject: str, body: str) -> bool:
         """Send email using SMTP or console log for development"""
-        # For development, just log to console
-        print(f"[EMAIL SERVICE] To: {to_email}")
-        print(f"[EMAIL SERVICE] Subject: {subject}")
-        print(f"[EMAIL SERVICE] Body: {body[:200]}...")
-        
-        # In production, uncomment this and configure SMTP
+        # Always log to console for development visibility
         try:
-            # msg = MIMEMultipart()
-            # msg['From'] = self.from_email
-            # msg['To'] = to_email
-            # msg['Subject'] = subject
-            # msg.attach(MIMEText(body, 'html'))
+            print(f"[EMAIL SERVICE] To: {to_email}")
+            print(f"[EMAIL SERVICE] Subject: {subject}")
+            print(f"[EMAIL SERVICE] Body: {body[:200]}...")
+        except UnicodeEncodeError:
+            # Fallback for Windows CP1252 consoles to prevent crash
+            try:
+                print(f"[EMAIL SERVICE] To: {to_email}")
+                print(f"[EMAIL SERVICE] Subject: {subject.encode('ascii', errors='replace').decode('ascii')}")
+                print(f"[EMAIL SERVICE] Body: {body[:200].encode('ascii', errors='replace').decode('ascii')}...")
+            except Exception:
+                print(f"[EMAIL SERVICE] Email logged (contains unicode characters)")
+        
+        # Check if SMTP credentials are provided. If not, simulate success
+        if not self.smtp_username or not self.smtp_password:
+            print("[EMAIL SERVICE] SMTP username or password is empty. Simulating success in console.")
+            return True
             
-            # server = smtplib.SMTP(self.smtp_server, self.smtp_port)
-            # server.starttls()
-            # server.login(self.smtp_username, self.smtp_password)
-            # server.send_message(msg)
-            # server.quit()
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = self.from_email
+            msg['To'] = to_email
+            msg['Subject'] = subject
+            msg.attach(MIMEText(body, 'html'))
             
+            server = smtplib.SMTP(self.smtp_server, self.smtp_port)
+            server.starttls()
+            server.login(self.smtp_username, self.smtp_password)
+            server.send_message(msg)
+            server.quit()
+            
+            print(f"[EMAIL SERVICE] Email successfully sent to {to_email} via SMTP.")
             return True
         except Exception as e:
-            print(f"[EMAIL SERVICE] Error sending email: {e}")
+            print(f"[EMAIL SERVICE] Error sending email via SMTP: {e}")
             return False
 
 email_service = EmailService()

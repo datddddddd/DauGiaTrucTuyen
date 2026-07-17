@@ -48,10 +48,29 @@ def init_db():
             if "product_id" not in columns_tx:
                 cursor.execute("ALTER TABLE transactions ADD COLUMN product_id INTEGER DEFAULT NULL")
                 
+            cursor.execute("PRAGMA table_info(payments)")
+            columns_payments = [col[1] for col in cursor.fetchall()]
+            if "released_by" not in columns_payments:
+                cursor.execute("ALTER TABLE payments ADD COLUMN released_by INTEGER DEFAULT NULL")
+            if "released_time" not in columns_payments:
+                cursor.execute("ALTER TABLE payments ADD COLUMN released_time DATETIME DEFAULT NULL")
+                
             conn.commit()
             conn.close()
         except Exception as e:
-            print(f"Migration warning: {e}")
+            print(f"Migration warning (SQLite): {e}")
+            
+    # Hỗ trợ PostgreSQL migration tự động trên môi trường production
+    if engine.dialect.name == "postgresql":
+        try:
+            conn = engine.raw_connection()
+            cursor = conn.cursor()
+            cursor.execute("ALTER TABLE payments ADD COLUMN IF NOT EXISTS released_by INTEGER DEFAULT NULL")
+            cursor.execute("ALTER TABLE payments ADD COLUMN IF NOT EXISTS released_time TIMESTAMP DEFAULT NULL")
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"Migration warning (PostgreSQL): {e}")
 
 # Hàm mượn và trả kết nối dữ liệu cho từng API khi có request
 def get_db():

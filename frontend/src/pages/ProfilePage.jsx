@@ -9,6 +9,7 @@ const ProfilePage = () => {
   const [activeTab, setActiveTab] = useState("profile");
 
   const [profileData, setProfileData] = useState({
+    email: "",
     full_name: "",
     phone: "",
     address: "",
@@ -24,6 +25,7 @@ const ProfilePage = () => {
   useEffect(() => {
     if (user) {
       setProfileData({
+        email: user.email || "",
         full_name: user.full_name || "",
         phone: user.phone || "",
         address: user.address || "",
@@ -139,9 +141,12 @@ const ProfilePage = () => {
                 </label>
                 <input
                   type="email"
-                  value={user.email}
-                  disabled
-                  className="w-full p-3 rounded-xl border border-brand-border bg-code-bg text-brand-h"
+                  value={profileData.email}
+                  onChange={(e) =>
+                    setProfileData({ ...profileData, email: e.target.value })
+                  }
+                  required
+                  className="w-full p-3 rounded-xl border border-brand-border bg-brand-bg text-brand-h focus:outline-none focus:border-accent"
                 />
               </div>
 

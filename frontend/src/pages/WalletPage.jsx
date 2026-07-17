@@ -24,12 +24,16 @@ const WalletPage = () => {
       navigate("/");
     } else {
       fetchWalletData();
+      const interval = setInterval(() => {
+        fetchWalletData(false);
+      }, 5000);
+      return () => clearInterval(interval);
     }
   }, [user, navigate]);
 
-  const fetchWalletData = async () => {
+  const fetchWalletData = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const [walletData, transactionsData] = await Promise.all([
         walletService.getWallet(),
         walletService.getTransactions(),
@@ -40,7 +44,7 @@ const WalletPage = () => {
       console.error("Failed to fetch wallet data:", error);
       setMessage("Không thể tải dữ liệu ví!");
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
@@ -135,16 +139,6 @@ const WalletPage = () => {
             >
               Nạp tiền
             </button>
-            <button
-              onClick={() => setActiveTab("withdraw")}
-              className={`px-4 py-2 font-medium ${
-                activeTab === "withdraw"
-                  ? "text-accent border-b-2 border-accent"
-                  : "text-brand-text"
-              }`}
-            >
-              Rút tiền
-            </button>
           </div>
 
           {message && (
@@ -173,26 +167,28 @@ const WalletPage = () => {
                   >
                     <div>
                       <p className="font-medium text-brand-h">
-                        {tx.description || tx.transaction_type}
+                        {tx.transaction_type === "Auction Payout" ? "Auction Payout" : (tx.description || tx.transaction_type)}
                       </p>
                       <p className="text-sm text-brand-text">
-                        {tx.payment_method} • {new Date(tx.created_at).toLocaleString("vi-VN")}
+                        {tx.transaction_type === "Auction Payout" 
+                          ? `Đơn hàng #AUC${tx.product_id ? String(tx.product_id).padStart(4, '0') : ''}` 
+                          : tx.payment_method} • {new Date(tx.created_at).toLocaleString("vi-VN")}
                       </p>
                     </div>
                     <div className="text-right">
                       <p
                         className={`font-bold ${
-                          tx.transaction_type === "deposit"
+                          (tx.transaction_type === "deposit" || tx.transaction_type === "Auction Payout")
                             ? "text-green-600"
                             : "text-red-600"
                         }`}
                       >
-                        {tx.transaction_type === "deposit" ? "+" : "-"}
+                        {(tx.transaction_type === "deposit" || tx.transaction_type === "Auction Payout") ? "+" : "-"}
                         {formatCurrency(tx.amount)}
                       </p>
                       <p className="text-xs text-brand-text">
                         {tx.status === "completed"
-                          ? "Hoàn thành"
+                          ? (tx.transaction_type === "Auction Payout" ? "Đã giải ngân" : "Hoàn thành")
                           : tx.status === "pending"
                           ? "Đang xử lý"
                           : "Thất bại"}
@@ -204,9 +200,9 @@ const WalletPage = () => {
             </div>
           )}
 
-          {(activeTab === "deposit" || activeTab === "withdraw") && (
+          {activeTab === "deposit" && (
             <form
-              onSubmit={activeTab === "deposit" ? handleDeposit : handleWithdraw}
+              onSubmit={handleDeposit}
               className="space-y-4"
             >
               <div>
@@ -240,8 +236,6 @@ const WalletPage = () => {
                   className="w-full p-3 rounded-xl border border-brand-border bg-brand-bg text-brand-h focus:outline-none focus:border-accent"
                 >
                   <option value="VNPay">VNPay Sandbox</option>
-                  <option value="MoMo">MoMo (Mô phỏng)</option>
-                  <option value="Stripe">Stripe (Mô phỏng)</option>
                 </select>
               </div>
 
@@ -269,9 +263,9 @@ const WalletPage = () => {
               >
                 {loading
                   ? "Đang xử lý..."
-                  : activeTab === "deposit"
-                  ? (transactionForm.payment_method === "VNPay" ? "Nạp tiền qua VNPAY 💳" : "Nạp tiền")
-                  : "Yêu cầu rút tiền"}
+                  : transactionForm.payment_method === "VNPay"
+                  ? "Nạp tiền qua VNPAY 💳"
+                  : "Nạp tiền"}
               </button>
             </form>
           )}
