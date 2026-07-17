@@ -1,6 +1,9 @@
 import os
 import sys
 
+# Reconfigure stdout for UTF-8 encoding
+sys.stdout.reconfigure(encoding='utf-8')
+
 # Thêm thư mục hiện tại vào sys.path để import models và database chính xác
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
@@ -25,6 +28,46 @@ def main():
     sqlite_url = f"sqlite:///{sqlite_db_path}"
     print(f"Cơ sở dữ liệu nguồn SQLite: {sqlite_url}")
     sqlite_engine = create_engine(sqlite_url)
+    
+    # Đồng bộ cấu trúc bảng SQLite cục bộ để đảm bảo đủ cột trước khi di chuyển
+    print("Đang đồng bộ cấu trúc bảng SQLite cục bộ...")
+    try:
+        conn = sqlite_engine.raw_connection()
+        cursor = conn.cursor()
+        
+        # users
+        cursor.execute("PRAGMA table_info(users)")
+        columns = [col[1] for col in cursor.fetchall()]
+        if "is_blocked" not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN is_blocked BOOLEAN DEFAULT 0")
+        if "is_verified" not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT 0")
+            
+        # products
+        cursor.execute("PRAGMA table_info(products)")
+        columns_prod = [col[1] for col in cursor.fetchall()]
+        if "shipping_code" not in columns_prod:
+            cursor.execute("ALTER TABLE products ADD COLUMN shipping_code VARCHAR DEFAULT NULL")
+            
+        # transactions
+        cursor.execute("PRAGMA table_info(transactions)")
+        columns_tx = [col[1] for col in cursor.fetchall()]
+        if "product_id" not in columns_tx:
+            cursor.execute("ALTER TABLE transactions ADD COLUMN product_id INTEGER DEFAULT NULL")
+            
+        # payments
+        cursor.execute("PRAGMA table_info(payments)")
+        columns_payments = [col[1] for col in cursor.fetchall()]
+        if "released_by" not in columns_payments:
+            cursor.execute("ALTER TABLE payments ADD COLUMN released_by INTEGER DEFAULT NULL")
+        if "released_time" not in columns_payments:
+            cursor.execute("ALTER TABLE payments ADD COLUMN released_time DATETIME DEFAULT NULL")
+            
+        conn.commit()
+        conn.close()
+        print("Đồng bộ cấu trúc bảng SQLite cục bộ thành công.")
+    except Exception as e:
+        print(f"Cảnh báo khi đồng bộ SQLite: {e}")
     
     # 2. Kết nối PostgreSQL đích từ biến môi trường
     pg_url = os.getenv("DATABASE_URL")
