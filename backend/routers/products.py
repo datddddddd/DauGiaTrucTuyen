@@ -17,6 +17,14 @@ router = APIRouter(prefix="/api/products", tags=["Products"])
 db_lock = threading.Lock()
 
 
+def mask_username(username: str) -> str:
+    if not username:
+        return "Khách ẩn danh"
+    if len(username) <= 2:
+        return username[0] + "*"
+    return f"{username[0]}***{username[-1]}"
+
+
 # =========================
 # WEBSOCKET MANAGER
 # =========================
@@ -366,14 +374,15 @@ async def place_bid(
             db.commit()
 
         # broadcast realtime
+        masked_bidder = mask_username(current_user.username)
         await auction_manager.broadcast(str(product_id), {
             "event": "new_bid_delta",
             "product_id": product_id,
             "current_price": product.current_price,
-            "latest_bidder": current_user.username,
+            "latest_bidder": masked_bidder,
             "new_bid_history": {
-                "user": current_user.username,
-                "username": current_user.username,
+                "user": masked_bidder,
+                "username": masked_bidder,
                 "amount": bid_data.bid_amount,
                 "bid_amount": bid_data.bid_amount,
                 "time": now.strftime("%Y-%m-%d %H:%M:%S"),
@@ -724,7 +733,7 @@ def get_product_bids(
     return [
         {
             "id": bid.id,
-            "username": bid.user.username if bid.user else "Khách ẩn danh",
+            "username": mask_username(bid.user.username) if bid.user else "Khách ẩn danh",
             "bid_amount": bid.bid_amount,
             "created_at": bid.created_at.strftime("%Y-%m-%d %H:%M:%S") if bid.created_at else None
         }

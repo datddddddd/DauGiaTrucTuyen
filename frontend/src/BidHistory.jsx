@@ -1,5 +1,12 @@
 import './BidHistory.css';
 
+const maskUsername = (username) => {
+  if (!username) return "Khách ẩn danh";
+  if (username.includes("***") || username.includes("*")) return username;
+  if (username.length <= 2) return username[0] + "*";
+  return `${username[0]}***${username[username.length - 1]}`;
+};
+
 export default function BidHistory({ bids }) {
   return (
     <div className="bid-history-container">
@@ -11,7 +18,7 @@ export default function BidHistory({ bids }) {
               <div className="dot"></div>
               <div className="content">
                 <span className="time">{bid.time || bid.created_at}</span>
-                <span className="user"><strong>{bid.username}</strong></span>
+                <span className="user"><strong>{maskUsername(bid.username || bid.user)}</strong></span>
                 <span className="amount">{(bid.bid_amount || bid.amount || 0).toLocaleString()} đ</span>
               </div>
             </div>
