@@ -695,23 +695,11 @@ const UserDashboardPage = () => {
                       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                         <div>
                           <p className="text-slate-500">Tổng tiền trúng đấu: <strong className="text-red-500 text-sm">{formatCurrency(o.price)}</strong></p>
-                          <p className="text-[10px] text-slate-400 mt-0.5">Phương thức: {o.paymentMethod || "Ký quỹ qua hệ thống"}</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">Phương thức: {o.paymentMethod || "VNPAY"}</p>
                         </div>
                         
                         {(o.status === "ended" || o.status === "Đợi thanh toán") && (
                           <div className="flex flex-wrap gap-2">
-                            <button
-                              onClick={() => payOrder(o.id, "Ví ký quỹ (Escrow)")}
-                              className="px-3.5 py-2 bg-slate-950 hover:bg-slate-900 dark:bg-white dark:text-slate-950 font-black rounded-lg text-[10px] text-white"
-                            >
-                              Ví ký quỹ
-                            </button>
-                            <button
-                              onClick={() => handleOpenQRModal(o)}
-                              className="px-3.5 py-2 border border-slate-350 dark:border-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-[10px] font-bold text-slate-800 dark:text-white"
-                            >
-                              Chuyển khoản VietQR
-                            </button>
                             <button
                               onClick={() => handlePayVNPAY(o)}
                               className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-lg text-[10px]"
@@ -722,7 +710,7 @@ const UserDashboardPage = () => {
                         )}
 
                         {o.status === "wait_confirm" && (
-                          <span className="text-blue-500 font-bold text-[10px]">🔄 Chờ xác thực thanh toán VietQR...</span>
+                          <span className="text-blue-500 font-bold text-[10px]">🔄 Chờ xác thực thanh toán VNPAY...</span>
                         )}
 
                         {o.status === "confirmed" && (

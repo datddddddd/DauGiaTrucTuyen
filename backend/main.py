@@ -128,7 +128,7 @@ async def check_expired_auctions_worker():
                     winner_notification = models.Notification(
                         user_id=winner.id,
                         title="🎉 Bạn đã thắng một phiên đấu giá!",
-                        message=f"Chúc mừng! Bạn đã thắng sản phẩm '{product.title}' với giá {highest_bid.bid_amount:,} VNĐ. Vui lòng vào trang quản lý để thanh toán đơn hàng bằng VietQR.",
+                        message=f"Chúc mừng! Bạn đã thắng sản phẩm '{product.title}' với giá {highest_bid.bid_amount:,} VNĐ. Vui lòng vào trang quản lý để thanh toán đơn hàng qua VNPAY.",
                         notification_type="auction_won",
                         product_id=product.id,
                         is_read=False

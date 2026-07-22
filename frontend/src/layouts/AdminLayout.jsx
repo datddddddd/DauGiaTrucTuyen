@@ -54,12 +54,6 @@ const AdminLayout = () => {
         </nav>
 
         <div className="p-3 border-t space-y-1" style={{ borderColor: "var(--border)" }}>
-          <Link
-            to={ROUTES.USER.HOME}
-            className="block px-4 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-slate-800 transition font-bold"
-          >
-            🏠 Về trang đấu giá
-          </Link>
           <button
             onClick={handleLogout}
             className="w-full text-left px-4 py-2.5 rounded-xl text-sm text-red-400 hover:bg-slate-800 transition font-bold"

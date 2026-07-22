@@ -35,6 +35,13 @@ import {
 const LandingPage = () => {
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isAuthenticated && user?.role === "admin") {
+      navigate(ROUTES.ADMIN.DASHBOARD);
+    }
+  }, [isAuthenticated, user, navigate]);
+
   const [darkMode, setDarkMode] = useState(
     document.documentElement.classList.contains("dark")
   );
@@ -692,7 +699,7 @@ const LandingPage = () => {
             {[
               {
                 q: "Làm thế nào để tôi có thể tham gia đặt giá trên hệ thống?",
-                a: "Bạn cần tạo một tài khoản (User thường), đăng nhập và tiến hành nạp tiền vào ví cá nhân tại mục 'Ví tiền' để thực hiện đặt cọc/ký quỹ tối thiểu tùy theo điều kiện đặt ra của từng sản phẩm. Khi đó bạn sẽ được cấp quyền đấu giá trong phòng trực tiếp."
+                a: "Bạn chỉ cần đăng ký tài khoản và đăng nhập là có thể tham gia Đặt giá hoặc Đặt giá cực nhanh ngay lập tức. Hệ thống KHÔNG trừ tiền hay khóa tiền khi bạn đặt giá. Bạn chỉ thực hiện thanh toán qua cổng VNPAY khi phiên đấu giá kết thúc và bạn là người trúng thầu."
               },
               {
                 q: "Quy chế ký quỹ của người bán (Seller) và sàn hoạt động ra sao?",

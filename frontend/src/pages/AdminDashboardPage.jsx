@@ -118,7 +118,11 @@ const AdminDashboardPage = () => {
           id: l.id,
           user: l.username || "System",
           action: l.details || l.action,
-          time: l.created_at ? l.created_at.split("T")[1]?.substring(0, 8) : "Unknown"
+          time: l.created_at 
+            ? (l.created_at.includes("T") 
+                ? l.created_at.split("T")[1]?.substring(0, 8) 
+                : l.created_at.split(" ")[1]?.substring(0, 8) || l.created_at.substring(0, 10))
+            : "Unknown"
         })));
       } else {
         setLogs([]);
@@ -192,7 +196,7 @@ const AdminDashboardPage = () => {
   const handleCompleteEscrow = async (productId) => {
     try {
       const response = await adminService.completeEscrow(productId);
-      triggerToast(response.message || "Giải ngân ký quỹ thành công!");
+      triggerToast(response.message || "Giải ngân thành công!");
       fetchDashboardData();
     } catch (error) {
       triggerToast(error.response?.data?.detail || "Lỗi giải ngân tiền!", "error");
@@ -381,7 +385,7 @@ const AdminDashboardPage = () => {
         )}
 
         {/* Dynamic flat metrics grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col justify-between h-28 shadow-sm">
             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Tổng người dùng</span>
             <div className="flex justify-between items-end">
@@ -394,7 +398,7 @@ const AdminDashboardPage = () => {
             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Đang hoạt động</span>
             <div className="flex justify-between items-end">
               <span className="text-3xl font-black text-amber-500">{formatNumber(stats?.active_auctions || 0)}</span>
-              <span className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-950/30 flex items-center justify-center text-sm">🔥</span>
+              <span className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-955/30 flex items-center justify-center text-sm">🔥</span>
             </div>
           </div>
 
@@ -403,14 +407,6 @@ const AdminDashboardPage = () => {
             <div className="flex justify-between items-end">
               <span className="text-3xl font-black text-emerald-500">{formatNumber(stats?.total_bids || 0)}</span>
               <span className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/30 flex items-center justify-center text-sm">💰</span>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col justify-between h-28 shadow-sm">
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Doanh thu sàn</span>
-            <div className="flex justify-between items-end">
-              <span className="text-2xl font-black text-indigo-500">{formatCurrency(stats?.total_revenue || 0)}</span>
-              <span className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-950/30 flex items-center justify-center text-sm">💎</span>
             </div>
           </div>
         </div>
@@ -490,21 +486,7 @@ const AdminDashboardPage = () => {
               </div>
             </div>
 
-            {/* Revenue distribution bar */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
-              <h3 className="text-xs font-black text-slate-400 mb-4 uppercase tracking-wider">Doanh thu sàn</h3>
-              <div className="h-60">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={revenueData} margin={{ top: 10, right: 10, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="name" />
-                    <YAxis tickFormatter={(v) => v >= 1000000 ? (v * 0.000001).toLocaleString("vi-VN") + " Tr" : v.toLocaleString("vi-VN")} width={80} />
-                    <Tooltip formatter={(v) => formatCurrency(v)} />
-                    <Bar dataKey="value" fill="#6366f1" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+
           </div>
         )}
 
@@ -752,29 +734,6 @@ const AdminDashboardPage = () => {
               </div>
             </div>
 
-            {/* Sub-tabs Selector */}
-            <div className="flex gap-2 border-b border-slate-200 dark:border-slate-800 pb-3 font-bold">
-              <button
-                onClick={() => setEscrowSubTab("vnpay")}
-                className={`px-4 py-2 rounded-xl transition ${escrowSubTab === "vnpay"
-                  ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950 shadow-sm"
-                  : "text-slate-500 hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
-                  }`}
-              >
-                💳 Giao dịch VNPAY (Thanh toán thầu)
-              </button>
-              <button
-                onClick={() => setEscrowSubTab("vietqr")}
-                className={`px-4 py-2 rounded-xl transition ${escrowSubTab === "vietqr"
-                  ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950 shadow-sm"
-                  : "text-slate-500 hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
-                  }`}
-              >
-                🏦 Duyệt giao dịch VietQR ({transactions.filter(t => t.status === "pending").length})
-              </button>
-            </div>
-
-            {escrowSubTab === "vnpay" && (
               <div className="space-y-6">
                 {/* Advanced Search & Filtering */}
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-4">
@@ -904,7 +863,7 @@ const AdminDashboardPage = () => {
                                   onClick={() => handleReleasePayment(pay.id)}
                                   className="px-2.5 py-1 bg-indigo-650 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px]"
                                 >
-                                  Release Payment
+                                  Giải ngân
                                 </button>
                               )}
                             </td>
@@ -942,137 +901,8 @@ const AdminDashboardPage = () => {
                   </div>
                 )}
               </div>
-            )}
 
-            {escrowSubTab === "vietqr" && (
-              <div className="space-y-6">
-                {/* VietQR Transactions Approvals */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-                  <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
-                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">
-                      💳 Duyệt giao dịch VietQR (Nạp tiền & Thanh toán)
-                    </h3>
-                    <span className="text-[10px] bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 px-2 py-0.5 rounded font-bold uppercase">
-                      {transactions.filter(t => t.status === "pending").length} Giao dịch chờ duyệt
-                    </span>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 font-bold uppercase">
-                          <th className="p-3">Mã GD</th>
-                          <th className="p-3">Người dùng</th>
-                          <th className="p-3">Số tiền</th>
-                          <th className="p-3">Loại</th>
-                          <th className="p-3">Mô tả chi tiết</th>
-                          <th className="p-3">Trạng thái</th>
-                          <th className="p-3">Hành động</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-350">
-                        {transactions.filter(t => t.status === "pending" || t.payment_method === "VietQR").map((t) => (
-                          <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition">
-                            <td className="p-3 font-bold text-slate-900 dark:text-white">#{t.id}</td>
-                            <td className="p-3">Thành viên #{t.user_id}</td>
-                            <td className="p-3 text-red-500 font-bold">{formatCurrency(t.amount)}</td>
-                            <td className="p-3">
-                              <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${t.transaction_type === "deposit" ? "bg-amber-100 text-amber-700 dark:bg-amber-955/30 dark:text-amber-400" : "bg-blue-100 text-blue-700 dark:bg-blue-955/30 dark:text-blue-400"}`}>
-                                {t.transaction_type === "deposit" ? "Nạp tiền" : "Thanh toán"}
-                              </span>
-                            </td>
-                            <td className="p-3 max-w-xs truncate">{t.description}</td>
-                            <td className="p-3">
-                              <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${t.status === "pending" ? "bg-amber-100 text-amber-700" : t.status === "completed" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                                {t.status === "pending" ? "Chờ duyệt" : t.status === "completed" ? "Thành công" : "Thất bại"}
-                              </span>
-                            </td>
-                            <td className="p-3">
-                              {t.status === "pending" ? (
-                                <button
-                                  onClick={() => handleApproveTransaction(t.id)}
-                                  className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg text-[10px]"
-                                >
-                                  Duyệt VietQR
-                                </button>
-                              ) : (
-                                <span className="text-slate-400 font-bold text-[10px]">-</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                        {transactions.filter(t => t.status === "pending" || t.payment_method === "VietQR").length === 0 && (
-                          <tr>
-                            <td colSpan="7" className="p-6 text-center text-slate-400 font-semibold">
-                              Không có giao dịch VietQR nào cần xử lý.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
 
-                {/* Legacy Escrow Release to Seller (Just in case they also need manual VietQR release fallback) */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-                  <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
-                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">
-                      📦 Đối soát giải ngân ký quỹ cho Người bán (Seller) - Phụ
-                    </h3>
-                    <span className="text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded font-bold uppercase">
-                      {products.filter(p => p.status === "completed" && p.bid_count > 0).length} Đơn chờ giải ngân
-                    </span>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 font-bold uppercase">
-                          <th className="p-3">Mã sản phẩm</th>
-                          <th className="p-3">Tên sản phẩm</th>
-                          <th className="p-3">Tiền ký quỹ thắng thầu</th>
-                          <th className="p-3">Người bán</th>
-                          <th className="p-3">Giao nhận</th>
-                          <th className="p-3">Hành động</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-350">
-                        {products.filter(p => ["completed", "delivered"].includes(p.status) && p.bid_count > 0).map((p) => (
-                          <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition">
-                            <td className="p-3 font-bold text-slate-900 dark:text-white">#{p.id}</td>
-                            <td className="p-3 font-bold text-slate-900 dark:text-white">{p.title}</td>
-                            <td className="p-3 text-emerald-600 font-bold">{formatCurrency(p.current_price)}</td>
-                            <td className="p-3">Thành viên #{p.seller_id}</td>
-                            <td className="p-3">
-                              <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${p.status === "completed" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
-                                {p.status === "completed" ? "Chờ giải ngân" : "Hoàn tất"}
-                              </span>
-                            </td>
-                            <td className="p-3">
-                              {p.status === "completed" ? (
-                                <button
-                                  onClick={() => handleCompleteEscrow(p.id)}
-                                  className="px-3 py-1.5 bg-indigo-650 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px]"
-                                >
-                                  Giải ngân ví Seller
-                                </button>
-                              ) : (
-                                <span className="text-slate-500 font-bold text-[10px]">✅ Đã giải ngân</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                        {products.filter(p => ["completed", "delivered"].includes(p.status) && p.bid_count > 0).length === 0 && (
-                          <tr>
-                            <td colSpan="6" className="p-6 text-center text-slate-400 font-semibold">
-                              Không có đơn hàng nào chờ giải ngân ký quỹ.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
@@ -1127,7 +957,7 @@ const AdminDashboardPage = () => {
               📜 Nhật ký kiểm duyệt & Đăng nhập hệ thống (1.6)
             </h3>
 
-            <div className="bg-slate-950 text-slate-350 p-4 rounded-xl border border-slate-800 font-mono text-xs space-y-1.5 overflow-x-auto shadow-inner">
+            <div className="bg-slate-950 text-slate-350 p-4 rounded-xl border border-slate-800 font-mono text-xs space-y-1.5 max-h-96 overflow-y-auto overflow-x-auto shadow-inner">
               {logs.map((log) => (
                 <div key={log.id} className="flex gap-2">
                   <span className="text-slate-600">[{log.time}]</span>
@@ -1238,7 +1068,7 @@ const AdminDashboardPage = () => {
                     onClick={() => handleReleasePayment(selectedPayment.id)}
                     className="px-4 py-2 bg-indigo-650 hover:bg-indigo-700 text-white font-black rounded-xl"
                   >
-                    Release Payment
+                    Giải ngân
                   </button>
                 )}
               </div>

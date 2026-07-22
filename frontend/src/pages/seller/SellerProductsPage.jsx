@@ -557,7 +557,7 @@ const SellerProductsPage = () => {
                       <span className="text-indigo-400 font-bold text-[10px]">🚚 Đang giao (Mã: {p.shipping_code || "Chưa có"})</span>
                     )}
                     {p.status === "delivered" && (
-                      <span className="text-orange-400 font-bold text-[10px]">⏳ Đợi Admin đối soát giải ngân ký quỹ</span>
+                      <span className="text-orange-400 font-bold text-[10px]">⏳ Đợi Admin đối soát giải ngân tiền hàng</span>
                     )}
                     {p.status === "completed" && (
                       <span className="text-purple-400 font-bold text-[10px]">✅ Đã giải ngân (Hoàn tất giao dịch)</span>

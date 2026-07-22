@@ -68,7 +68,7 @@ const PaymentResult = () => {
           <p className="text-xs text-slate-500 max-w-xs">
             {isSuccess
               ? (isDeposit 
-                  ? "Cảm ơn bạn! Số tiền đã được nạp thành công vào tài khoản ví ký quỹ của bạn qua cổng VNPAY." 
+                  ? "Cảm ơn bạn! Số tiền đã được nạp thành công vào tài khoản ví cá nhân của bạn qua cổng VNPAY." 
                   : "Cảm ơn bạn! Đơn hàng của bạn đã được ghi nhận thanh toán thành công qua cổng VNPAY.")
               : isFailed
               ? paymentInfo.message === "InvalidChecksum"

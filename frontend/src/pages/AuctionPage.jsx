@@ -284,6 +284,49 @@ const AuctionPage = () => {
     }
   };
 
+  const handleQuickBid = async () => {
+    if (!user) {
+      alert("Vui lòng đăng nhập để tham gia đấu giá!");
+      navigate(ROUTES.PUBLIC.LOGIN);
+      return;
+    }
+    if (!product) return;
+    
+    const quickAmount = product.current_price + product.step_price;
+    
+    const confirmed = await showConfirm({
+      title: "Xác nhận đặt giá nhanh",
+      message: `Bạn có chắc muốn đặt giá nhanh ${quickAmount.toLocaleString()} VNĐ cho "${product.title}"?`,
+      variant: "warning",
+      okText: "Đặt giá",
+      cancelText: "Hủy",
+    });
+    if (!confirmed) return;
+
+    setIsSubmitting(true);
+    try {
+      const resData = await productService.placeBid({
+        product_id: product.id,
+        bid_amount: quickAmount,
+      });
+      showAlert({
+        title: "Đặt giá thành công",
+        message: resData.sniped
+          ? "Anti-Sniping kích hoạt! Thời gian phòng đấu được cộng thêm 1 phút."
+          : "Giá của bạn đã được ghi nhận thành công.",
+        variant: "success",
+      });
+    } catch (error) {
+      showAlert({
+        title: "Đặt giá thất bại",
+        message: error.message || "Có lỗi xảy ra khi đặt giá.",
+        variant: "error",
+      });
+    } finally {
+      setTimeout(() => setIsSubmitting(false), 1500);
+    }
+  };
+
   const renderReportModal = () => {
     if (!showReportModal) return null;
     return (
@@ -537,16 +580,19 @@ const AuctionPage = () => {
               {product.current_price?.toLocaleString()}{" "}
               <span className="text-lg">VNĐ</span>
             </h3>
-            {user?.role !== "admin" && (
-              <p className="text-xs mt-2" style={{ color: "var(--text)" }}>
-                Bước giá tối thiểu:{" "}
-                <span className="font-semibold" style={{ color: "var(--text-h)" }}>
-                  +{product.step_price.toLocaleString()} VNĐ
-                </span>
-                . Yêu cầu nhập tối thiểu:{" "}
-                <span className="text-green-500 font-bold">{minAllowed.toLocaleString()} VNĐ</span>
-              </p>
-            )}
+              <div className="space-y-1 mt-2">
+                <p className="text-xs" style={{ color: "var(--text)" }}>
+                  Bước giá tối thiểu:{" "}
+                  <span className="font-semibold" style={{ color: "var(--text-h)" }}>
+                    +{product.step_price.toLocaleString()} VNĐ
+                  </span>
+                  . Yêu cầu nhập tối thiểu:{" "}
+                  <span className="text-green-500 font-bold">{minAllowed.toLocaleString()} VNĐ</span>
+                </p>
+                <p className="text-[11px] text-indigo-400 font-medium flex items-center gap-1">
+                  💡 <span>Hệ thống không trừ/khóa tiền khi đặt giá. Thanh toán qua VNPAY chỉ thực hiện khi bạn trúng thầu.</span>
+                </p>
+              </div>
           </div>
 
           {user?.role === "admin" ? (
@@ -554,7 +600,7 @@ const AuctionPage = () => {
               🛡️ Bạn đang đăng nhập với tư cách Quản trị viên (Admin). Bạn không thể tham gia đấu giá! Các tính năng đấu giá đã bị ẩn.
             </div>
           ) : (
-            <form onSubmit={handleBidSubmit} className="mt-8 flex gap-3">
+            <form onSubmit={handleBidSubmit} className="mt-8 flex flex-col sm:flex-row gap-3">
               <input
                 type="number"
                 placeholder={product.seller_id === user?.id ? "Bạn là người đăng bán sản phẩm này..." : "Nhập số tiền muốn đấu giá..."}
@@ -568,19 +614,35 @@ const AuctionPage = () => {
                   color: "var(--text-h)",
                 }}
               />
-              <button
-                type="submit"
-                disabled={timeLeft <= 0 || isSubmitting || (product.seller_id === user?.id)}
-                className={`px-6 py-3 text-white font-bold rounded-xl text-base shadow-md transition-all duration-200 ${
-                  isSubmitting || timeLeft <= 0 || (product.seller_id === user?.id)
-                    ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-green-600 hover:bg-green-700 active:scale-95"
-                }`}
-              >
-                {product.seller_id === user?.id 
-                  ? "🚫 Không Thể Đấu Giá" 
-                  : (isSubmitting ? "⌛ Đang ghi nhận..." : "🔨 Đặt Giá Cực Nhanh")}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={timeLeft <= 0 || isSubmitting || (product.seller_id === user?.id)}
+                  className={`px-6 py-3 text-white font-bold rounded-xl text-base shadow-md transition-all duration-200 ${
+                    isSubmitting || timeLeft <= 0 || (product.seller_id === user?.id)
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-green-600 hover:bg-green-700 active:scale-95"
+                  }`}
+                >
+                  {product.seller_id === user?.id 
+                    ? "🚫 Không Thể Đấu Giá" 
+                    : (isSubmitting ? "⌛..." : "🔨 Đặt giá")}
+                </button>
+                {product.seller_id !== user?.id && (
+                  <button
+                    type="button"
+                    onClick={handleQuickBid}
+                    disabled={timeLeft <= 0 || isSubmitting}
+                    className={`px-6 py-3 text-white font-bold rounded-xl text-base shadow-md transition-all duration-200 ${
+                      isSubmitting || timeLeft <= 0
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : "bg-amber-500 hover:bg-amber-600 active:scale-95"
+                    }`}
+                  >
+                    ⚡ Đặt nhanh ({minAllowed.toLocaleString()})
+                  </button>
+                )}
+              </div>
             </form>
           )}
 

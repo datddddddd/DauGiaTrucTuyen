@@ -85,6 +85,21 @@ class ApiService {
 
     return response.json();
   }
+
+  async patch(endpoint, data = {}) {
+    const response = await fetch(`${this.baseURL}${endpoint}`, {
+      method: "PATCH",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || "API request failed");
+    }
+
+    return response.json();
+  }
 }
 
 export default new ApiService();

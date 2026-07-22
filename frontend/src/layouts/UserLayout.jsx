@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate, useLocation, Outlet } from "react-router-dom";
+import { Link, useNavigate, useLocation, Outlet, Navigate } from "react-router-dom";
 import { useAuth } from "../contexts";
 import { ROUTES } from "../constants/routes";
 import { isActivePath } from "../utils/navigation";
@@ -8,6 +8,10 @@ const UserLayout = () => {
   const { user, logout, isAdmin, isSeller } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  if (isAdmin) {
+    return <Navigate to={ROUTES.ADMIN.DASHBOARD} replace />;
+  }
   const [darkMode, setDarkMode] = useState(
     document.documentElement.classList.contains("dark")
   );

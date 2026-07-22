@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, Date
 from typing import List, Optional
 import bcrypt
 from datetime import datetime, timedelta
@@ -277,48 +277,10 @@ def approve_transaction(
             db.commit()
             
     elif transaction.transaction_type == "payment":
-        # Approve direct product payment (VietQR)
-        transaction.status = "completed"
-        
-        # Update product status to confirmed (Đang soạn hàng)
-        product = None
-        if transaction.product_id:
-            product = db.query(models.Product).filter(models.Product.id == transaction.product_id).first()
-        else:
-            # Fallback to parsing product ID from description if product_id is not set
-            import re
-            match = re.search(r"#(\d+)", transaction.description or "")
-            if match:
-                prod_id = int(match.group(1))
-                product = db.query(models.Product).filter(models.Product.id == prod_id).first()
-                
-        if product:
-            product.status = "confirmed"
-            
-            # Send notification to winner (buyer)
-            buyer_notification = models.Notification(
-                user_id=transaction.user_id,
-                title="💳 Xác nhận thanh toán thành công",
-                message=f"Thanh toán VietQR cho đơn hàng '{product.title}' đã được Ban quản trị xác nhận thành công.",
-                notification_type="system",
-                product_id=product.id,
-                is_read=False
-            )
-            db.add(buyer_notification)
-            
-            # Send notification to seller
-            if product.seller_id:
-                seller_notification = models.Notification(
-                    user_id=product.seller_id,
-                    title="💰 Đơn hàng đã được thanh toán",
-                    message=f"Người mua đã thanh toán cho sản phẩm '{product.title}'. Vui lòng soạn hàng và cập nhật mã vận đơn.",
-                    notification_type="system",
-                    product_id=product.id,
-                    is_read=False
-                )
-                db.add(seller_notification)
-                
-        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Phương thức thanh toán trực tiếp qua VietQR đã bị vô hiệu hóa. Vui lòng thanh toán trực tiếp qua VNPAY."
+        )
     
     create_log(db, current_admin.id, "admin_action", f"Approved transaction {transaction_id}")
     
@@ -615,15 +577,15 @@ def get_payment_stats(
             daily_revenue.append({"date": r_date, "amount": r_sum})
     else:
         rows = db.query(
-            func.cast(models.Payment.released_time, models.Date),
+            func.cast(models.Payment.released_time, Date),
             func.sum(models.Payment.amount)
         ).filter(
             models.Payment.status == "Released",
             models.Payment.released_time != None
         ).group_by(
-            func.cast(models.Payment.released_time, models.Date)
+            func.cast(models.Payment.released_time, Date)
         ).order_by(
-            func.cast(models.Payment.released_time, models.Date)
+            func.cast(models.Payment.released_time, Date)
         ).all()
         for r_date, r_sum in rows:
             daily_revenue.append({"date": r_date.isoformat(), "amount": r_sum})

@@ -227,15 +227,20 @@ def get_my_won_products(
         if highest_bid and highest_bid.user_id == current_user.id:
             shipping_code = p.shipping_code or ""
             
-            payment_tx = db.query(models.Transaction).filter(
-                models.Transaction.user_id == current_user.id,
-                models.Transaction.description.like(f"%{p.title}%"),
-                models.Transaction.transaction_type == "payment"
+            vnp_payment = db.query(models.Payment).filter(
+                models.Payment.auction_id == p.id,
+                models.Payment.status.in_(["SUCCESS", "WaitingForPayout", "Released"])
             ).first()
             
-            payment_method = payment_tx.payment_method if payment_tx else None
-            if not payment_method:
-                payment_method = "Ví ký quỹ" if p.status != "ended" else "Chưa thanh toán"
+            if vnp_payment:
+                payment_method = vnp_payment.payment_method or "VNPAY"
+            else:
+                payment_tx = db.query(models.Transaction).filter(
+                    models.Transaction.user_id == current_user.id,
+                    models.Transaction.product_id == p.id,
+                    models.Transaction.transaction_type == "payment"
+                ).first()
+                payment_method = payment_tx.payment_method if payment_tx else ("VNPAY" if p.status != "ended" else "Chưa thanh toán")
             
             result.append({
                 "id": p.id,
@@ -317,26 +322,10 @@ async def place_bid(
                 raise HTTPException(400, "Auction ended")
 
             # min bid check
+            # min bid check
             min_bid = product.current_price + product.step_price
             if bid_data.bid_amount < min_bid:
                 raise HTTPException(400, f"Min bid is {min_bid}")
-
-            # wallet
-            wallet = db.query(models.Wallet).filter(
-                models.Wallet.user_id == current_user.id
-            ).first()
-
-            if not wallet:
-                wallet = models.Wallet(user_id=current_user.id, balance=0)
-                db.add(wallet)
-                db.commit()
-                db.refresh(wallet)
-
-            if wallet.balance < bid_data.bid_amount:
-                raise HTTPException(400, "bạn không đủ tiền đặt cược")
-
-            # trừ tiền
-            wallet.balance -= bid_data.bid_amount
 
             # anti-snipe
             remaining = (product.end_time - now).total_seconds()
@@ -384,8 +373,11 @@ async def place_bid(
             "latest_bidder": current_user.username,
             "new_bid_history": {
                 "user": current_user.username,
+                "username": current_user.username,
                 "amount": bid_data.bid_amount,
-                "time": now.isoformat()
+                "bid_amount": bid_data.bid_amount,
+                "time": now.strftime("%Y-%m-%d %H:%M:%S"),
+                "created_at": now.strftime("%Y-%m-%d %H:%M:%S")
             },
             "end_time": product.end_time.isoformat()
         })
@@ -714,6 +706,30 @@ def create_product_review(
     db.add(new_review)
     db.commit()
     return {"success": True, "message": "Gửi đánh giá thành công!"}
+
+
+@router.get("/{product_id}/bids")
+def get_product_bids(
+    product_id: int,
+    db: Session = Depends(database.get_db)
+):
+    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Không tìm thấy sản phẩm!")
+        
+    bids = db.query(models.Bid).filter(
+        models.Bid.product_id == product_id
+    ).order_by(models.Bid.created_at.desc()).all()
+    
+    return [
+        {
+            "id": bid.id,
+            "username": bid.user.username if bid.user else "Khách ẩn danh",
+            "bid_amount": bid.bid_amount,
+            "created_at": bid.created_at.strftime("%Y-%m-%d %H:%M:%S") if bid.created_at else None
+        }
+        for bid in bids
+    ]
 
 
 @router.get("/{product_id}/reviews")
