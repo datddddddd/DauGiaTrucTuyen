@@ -587,7 +587,7 @@ const LandingPage = () => {
 
             <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
               <div className="w-10 h-10 bg-slate-100 dark:bg-slate-850 rounded-xl flex items-center justify-center text-slate-900 dark:text-slate-200">
-                <Shield className="w-5 h-5 text-indigo-650" strokeWidth={1.5} />
+                <Shield className="w-5 h-5 text-indigo-600" strokeWidth={1.5} />
               </div>
               <h3 className="font-bold text-lg text-slate-900 dark:text-white">Bảo Mật Ký Quỹ An Toàn</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">

@@ -683,7 +683,7 @@ const AdminDashboardPage = () => {
                         {p.status === "paused" && (
                           <button
                             onClick={() => changeAuctionStatus(p.id, "resume")}
-                            className="px-2 py-1 bg-indigo-650 hover:bg-indigo-700 text-white rounded-lg text-[9px]"
+                            className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[9px]"
                           >
                             Tiếp tục
                           </button>
@@ -809,7 +809,7 @@ const AdminDashboardPage = () => {
                           <tr key={pay.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition">
                             <td className="p-3 font-bold text-slate-900 dark:text-white">#{pay.id}</td>
                             <td className="p-3 font-bold text-slate-900 dark:text-white max-w-xs truncate">{pay.product.title}</td>
-                            <td className="p-3 text-indigo-650 font-bold">{formatCurrency(pay.amount)}</td>
+                            <td className="p-3 text-indigo-600 font-bold">{formatCurrency(pay.amount)}</td>
                             <td className="p-3">{pay.buyer.username}</td>
                             <td className="p-3">{pay.seller?.username || "N/A"}</td>
                             <td className="p-3">
@@ -861,7 +861,7 @@ const AdminDashboardPage = () => {
                               {pay.status === "WaitingForPayout" && (
                                 <button
                                   onClick={() => handleReleasePayment(pay.id)}
-                                  className="px-2.5 py-1 bg-indigo-650 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px]"
+                                  className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px]"
                                 >
                                   Giải ngân
                                 </button>
@@ -1066,7 +1066,7 @@ const AdminDashboardPage = () => {
                 {selectedPayment.status === "WaitingForPayout" && (
                   <button
                     onClick={() => handleReleasePayment(selectedPayment.id)}
-                    className="px-4 py-2 bg-indigo-650 hover:bg-indigo-700 text-white font-black rounded-xl"
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl"
                   >
                     Giải ngân
                   </button>

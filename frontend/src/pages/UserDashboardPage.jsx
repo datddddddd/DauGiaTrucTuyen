@@ -761,7 +761,7 @@ const UserDashboardPage = () => {
                                 setReviewProduct(o);
                                 setShowReviewModal(true);
                               }}
-                              className="px-3.5 py-2 bg-indigo-650 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px]"
+                              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px]"
                             >
                               Đánh giá người bán ⭐
                             </button>
@@ -1110,7 +1110,7 @@ const UserDashboardPage = () => {
                     id="isDefaultAddress"
                     checked={isDefaultAddress}
                     onChange={(e) => setIsDefaultAddress(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded border-slate-350 text-indigo-650 focus:ring-indigo-500"
+                    className="w-3.5 h-3.5 rounded border-slate-350 text-indigo-600 focus:ring-indigo-500"
                   />
                   <label htmlFor="isDefaultAddress" className="text-[10px] text-slate-500 dark:text-slate-400 font-black cursor-pointer">
                     Đặt làm địa chỉ đầy đủ

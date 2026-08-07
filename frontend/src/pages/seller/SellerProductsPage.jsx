@@ -318,7 +318,7 @@ const SellerProductsPage = () => {
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="bg-indigo-650 hover:bg-indigo-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs transition shadow-md"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs transition shadow-md"
           >
             ➕ Đăng sản phẩm mới
           </button>
@@ -548,7 +548,7 @@ const SellerProductsPage = () => {
                     {p.status === "preparing" && (
                       <button
                         onClick={() => handleShipConfirm(p.id)}
-                        className="px-3.5 py-1.5 bg-indigo-650 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px]"
+                        className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px]"
                       >
                         Giao hàng (Nhập mã vận đơn)
                       </button>
@@ -909,7 +909,7 @@ const SellerProductsPage = () => {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="flex-1 py-2.5 bg-indigo-650 hover:bg-indigo-700 disabled:bg-slate-700 text-white font-bold rounded-xl text-xs transition"
+                    className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-700 text-white font-bold rounded-xl text-xs transition"
                   >
                     {isSubmitting ? "💾 Đang lưu..." : "Lưu thay đổi"}
                   </button>
